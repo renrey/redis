@@ -33,6 +33,7 @@
 
 /* Node, List, and Iterator are the only data structures used currently. */
 
+// 双向
 typedef struct listNode {
     struct listNode *prev;
     struct listNode *next;
@@ -44,6 +45,7 @@ typedef struct listIter {
     int direction;
 } listIter;
 
+// 双向链表结构
 typedef struct list {
     listNode *head;
     listNode *tail;

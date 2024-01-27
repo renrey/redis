@@ -370,10 +370,12 @@ This file defines all the I/O functions with clients, masters and replicas
 * `createClient()` allocates and initializes a new client.
 * the `addReply*()` family of functions are used by command implementations in order to append data to the client structure, that will be transmitted to the client as a reply for a given command executed.
 * `writeToClient()` transmits the data pending in the output buffers to the client and is called by the *writable event handler* `sendReplyToClient()`.
-* `readQueryFromClient()` is the *readable event handler* and accumulates data read from the client into the query buffer.
-* `processInputBuffer()` is the entry point in order to parse the client query buffer according to the Redis protocol. Once commands are ready to be processed, it calls `processCommand()` which is defined inside `server.c` in order to actually execute the command.
-* `freeClient()` deallocates, disconnects and removes a client.
-
+* 负责发送数据到output buffer 一般会被writable event handler的sendReplyToClient（）调用
+* `readQueryFromClient()` is the *readable event handler* and accumulates data read from the client into the query buffer. 可读事件（readable）处理器，缓存从client读取的数据到query buffer中
+//  
+* `processInputBuffer()` is the entry point in order to parse the client query buffer according to the Redis protocol. Once commands are ready to be processed, it calls `processCommand()` which is defined inside `server.c` in order to actually execute the command. processInputBuffer就是根据redis协议的解析client query buffer数据变成命令，processCommand就是执行这个命令
+* `freeClient()` deallocates, disconnects and removes a client. 移除client
+* 
 aof.c and rdb.c
 ---
 

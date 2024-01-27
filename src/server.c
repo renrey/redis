@@ -1352,8 +1352,13 @@ uint64_t dictEncObjHash(const void *key) {
  * but to guarantee the performance of redis, we still allow dict to expand
  * if dict load factor exceeds HASHTABLE_MAX_LOAD_FACTOR. */
 int dictExpandAllowed(size_t moreMem, double usedRatio) {
+    // 占用率在1.618内
     if (usedRatio <= HASHTABLE_MAX_LOAD_FACTOR) {
+        // 判断是否申请新内存是否超过最大限制
+        // 超过则释放无用内存后再判断 
+        // 就是不超过才能扩容
         return !overMaxmemoryAfterAlloc(moreMem);
+    // 使用比例 > 1.618 可扩容    
     } else {
         return 1;
     }
@@ -1427,6 +1432,7 @@ dictType shaScriptObjectDictType = {
 };
 
 /* Db->expires */
+// 代表
 dictType dbExpiresDictType = {
     dictSdsHash,                /* hash function */
     NULL,                       /* key dup */
@@ -1572,6 +1578,7 @@ void tryResizeHashTables(int dbid) {
 int incrementallyRehash(int dbid) {
     /* Keys dictionary */
     if (dictIsRehashing(server.db[dbid].dict)) {
+        // 
         dictRehashMilliseconds(server.db[dbid].dict,1);
         return 1; /* already used our millisecond for this loop... */
     }
@@ -1590,9 +1597,9 @@ int incrementallyRehash(int dbid) {
  * for dict.c to resize or rehash the tables accordingly to the fact we have an
  * active fork child running. */
 void updateDictResizePolicy(void) {
-    if (server.in_fork_child != CHILD_TYPE_NONE)
+    if (server.in_fork_child != CHILD_TYPE_NONE)// 准备fork，变为forbid，禁止扩容
         dictSetResizeEnabled(DICT_RESIZE_FORBID);
-    else if (hasActiveChildProcess())
+    else if (hasActiveChildProcess())// 有已正在进行的子进程（已fork，变成avoid，需要达到条件才能扩容）
         dictSetResizeEnabled(DICT_RESIZE_AVOID);
     else
         dictSetResizeEnabled(DICT_RESIZE_ENABLE);
@@ -2491,8 +2498,10 @@ void afterSleep(struct aeEventLoop *eventLoop) {
 
 void createSharedObjects(void) {
     int j;
+    // 就类似预先创建的常量
 
     /* Shared command responses */
+    // 一般响应给的客户段的文本
     shared.crlf = createObject(OBJ_STRING,sdsnew("\r\n"));
     shared.ok = createObject(OBJ_STRING,sdsnew("+OK\r\n"));
     shared.emptybulk = createObject(OBJ_STRING,sdsnew("$0\r\n\r\n"));
@@ -2506,6 +2515,7 @@ void createSharedObjects(void) {
     shared.colon = createObject(OBJ_STRING,sdsnew(":"));
     shared.plus = createObject(OBJ_STRING,sdsnew("+"));
 
+    // 错误响应的文本
     /* Shared command error responses */
     shared.wrongtypeerr = createObject(OBJ_STRING,sdsnew(
         "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n"));
@@ -3030,7 +3040,9 @@ void closeSocketListeners(socketFds *sfd) {
 int createSocketAcceptHandler(socketFds *sfd, aeFileProc *accept_handler) {
     int j;
 
+    // 遍历socket server连接(多个host所以会遍历)
     for (j = 0; j < sfd->count; j++) {
+        // 注册时间到read事件到el中
         if (aeCreateFileEvent(server.el, sfd->fd[j], AE_READABLE, accept_handler,NULL) == AE_ERR) {
             /* Rollback */
             for (j = j-1; j >= 0; j--) aeDeleteFileEvent(server.el, sfd->fd[j], AE_READABLE);
@@ -3070,10 +3082,13 @@ int listenToPort(int port, socketFds *sfd) {
         bindaddr = default_bindaddr;
     }
 
+    // 就是遍历多个ip域名（主要看里面逻辑）
+    // 监听端口的逻辑
     for (j = 0; j < bindaddr_count; j++) {
         char* addr = bindaddr[j];
         int optional = *addr == '-';
         if (optional) addr++;
+        // 创建socket连接，绑定端口
         if (strchr(addr,':')) {
             /* Bind IPv6 address. */
             sfd->fd[sfd->count] = anetTcp6Server(server.neterr,port,addr,server.tcp_backlog);
@@ -3081,6 +3096,7 @@ int listenToPort(int port, socketFds *sfd) {
             /* Bind IPv4 address. */
             sfd->fd[sfd->count] = anetTcpServer(server.neterr,port,addr,server.tcp_backlog);
         }
+        // 失败
         if (sfd->fd[sfd->count] == ANET_ERR) {
             int net_errno = errno;
             serverLog(LL_WARNING,
@@ -3094,6 +3110,7 @@ int listenToPort(int port, socketFds *sfd) {
                 continue;
 
             /* Rollback successful listens before exiting */
+            // 关掉所有前面已成注册监听的
             closeSocketListeners(sfd);
             return C_ERR;
         }
@@ -3163,6 +3180,7 @@ void initServer(void) {
 
     signal(SIGHUP, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
+    // 信号处理器：应该是接收进程信号
     setupSignalHandlers();
     makeThreadKillable();
 
@@ -3199,6 +3217,7 @@ void initServer(void) {
     server.client_pause_type = 0;
     server.paused_clients = listCreate();
     server.events_processed_while_blocked = 0;
+    // 当前机器物理内存size（RAM）
     server.system_memory_size = zmalloc_get_memory_size();
     server.blocked_last_cron = 0;
     server.blocking_op_nesting = 0;
@@ -3213,6 +3232,10 @@ void initServer(void) {
     adjustOpenFilesLimit();
     const char *clk_msg = monotonicInit();
     serverLog(LL_NOTICE, "monotonic clock: %s", clk_msg);
+
+    /**
+     * 创建eventloop，用于网络io的fd数：server.maxclients+128 
+    */
     server.el = aeCreateEventLoop(server.maxclients+CONFIG_FDSET_INCR);
     if (server.el == NULL) {
         serverLog(LL_WARNING,
@@ -3220,9 +3243,11 @@ void initServer(void) {
             strerror(errno));
         exit(1);
     }
+    // 分配预留db属性(指针)空间
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
     /* Open the TCP listening socket for the user commands. */
+    // 监听服务端口
     if (server.port != 0 &&
         listenToPort(server.port,&server.ipfd) == C_ERR) {
         /* Note: the following log text is matched by the test suite. */
@@ -3256,14 +3281,17 @@ void initServer(void) {
     }
 
     /* Create the Redis databases, and initialize other internal state. */
+    // 真正创建db所需空间
     for (j = 0; j < server.dbnum; j++) {
+        // 用于存放的key-val
         server.db[j].dict = dictCreate(&dbDictType,NULL);
+        // ttl过期key
         server.db[j].expires = dictCreate(&dbExpiresDictType,NULL);
         server.db[j].expires_cursor = 0;
         server.db[j].blocking_keys = dictCreate(&keylistDictType,NULL);
         server.db[j].ready_keys = dictCreate(&objectKeyPointerValueDictType,NULL);
         server.db[j].watched_keys = dictCreate(&keylistDictType,NULL);
-        server.db[j].id = j;
+        server.db[j].id = j;// id
         server.db[j].avg_ttl = 0;
         server.db[j].defrag_later = listCreate();
         listSetFreeMethod(server.db[j].defrag_later,(void (*)(void*))sdsfree);
@@ -3322,6 +3350,7 @@ void initServer(void) {
     /* Create the timer callback, this is our way to process many background
      * operations incrementally, like clients timeout, eviction of unaccessed
      * expired keys and so forth. */
+     // 创建后台定时任务
     if (aeCreateTimeEvent(server.el, 1, serverCron, NULL, NULL) == AE_ERR) {
         serverPanic("Can't create event loop timers.");
         exit(1);
@@ -3329,6 +3358,7 @@ void initServer(void) {
 
     /* Create an event handler for accepting new connections in TCP and Unix
      * domain sockets. */
+    // 注册到主服务端socket 的监听事件处理
     if (createSocketAcceptHandler(&server.ipfd, acceptTcpHandler) != C_OK) {
         serverPanic("Unrecoverable error creating TCP socket accept handler.");
     }
@@ -3368,16 +3398,19 @@ void initServer(void) {
      * no explicit limit in the user provided configuration we set a limit
      * at 3 GB using maxmemory with 'noeviction' policy'. This avoids
      * useless crashes of the Redis instance for out of memory. */
+    // 32位下（最多4g）默认限制策略：未设置上限定，最大3g，noeviction---不淘汰的淘汰策略
     if (server.arch_bits == 32 && server.maxmemory == 0) {
         serverLog(LL_WARNING,"Warning: 32 bit instance detected but no memory limit set. Setting 3 GB maxmemory limit with 'noeviction' policy now.");
         server.maxmemory = 3072LL*(1024*1024); /* 3 GB */
         server.maxmemory_policy = MAXMEMORY_NO_EVICTION;
     }
 
+    // redis cluster初始化
     if (server.cluster_enabled) clusterInit();
+    
     replicationScriptCacheInit();
-    scriptingInit(1);
-    slowlogInit();
+    scriptingInit(1);// 脚本？lua么？
+    slowlogInit(); // slow日志
     latencyMonitorInit();
     
     /* Initialize ACL default password if it exists */
@@ -3390,7 +3423,7 @@ void initServer(void) {
  * Thread Local Storage initialization collides with dlopen call.
  * see: https://sourceware.org/bugzilla/show_bug.cgi?id=19329 */
 void InitServerLast() {
-    bioInit();
+    bioInit();// 好像是后台job线程
     initThreadedIO();
     set_jemalloc_bg_thread(server.jemalloc_bg_thread);
     server.initial_memory_usage = zmalloc_used_memory();
@@ -3463,6 +3496,7 @@ int populateCommandTableParseFlags(struct redisCommand *c, char *strflags) {
 
 /* Populates the Redis Command Table starting from the hard coded list
  * we have on top of server.c file. */
+ // 
 void populateCommandTable(void) {
     int j;
     int numcommands = sizeof(redisCommandTable)/sizeof(struct redisCommand);
@@ -3477,9 +3511,11 @@ void populateCommandTable(void) {
             serverPanic("Unsupported command flag");
 
         c->id = ACLGetCommandID(c->name); /* Assign the ID used for ACL. */
+        // 加入dict
         retval1 = dictAdd(server.commands, sdsnew(c->name), c);
         /* Populate an additional dictionary that will be unaffected
          * by rename-command statements in redis.conf. */
+         // 好像是重命令的
         retval2 = dictAdd(server.orig_commands, sdsnew(c->name), c);
         serverAssert(retval1 == DICT_OK && retval2 == DICT_OK);
     }
@@ -3731,6 +3767,7 @@ void call(client *c, int flags) {
     redisOpArrayInit(&server.also_propagate);
 
     /* Call the command. */
+    // 
     dirty = server.dirty;
     prev_err_count = server.stat_total_error_replies;
 
@@ -3746,6 +3783,8 @@ void call(client *c, int flags) {
     if (monotonicGetType() == MONOTONIC_CLOCK_HW)
         monotonic_start = getMonotonicUs();
 
+
+    // 执行对应command方法
     server.in_nested_call++;
     c->cmd->proc(c);
     server.in_nested_call--;
@@ -4024,6 +4063,7 @@ int processCommand(client *c) {
 
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
+     // 查找命令
     c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);
     if (!c->cmd) {
         sds args = sdsempty();
@@ -4040,6 +4080,7 @@ int processCommand(client *c) {
             c->cmd->name);
         return C_OK;
     }
+
 
     int is_read_command = (c->cmd->flags & CMD_READONLY) ||
                            (c->cmd->proc == execCommand && (c->mstate.cmd_flags & CMD_READONLY));
@@ -4286,12 +4327,15 @@ int processCommand(client *c) {
     }
 
     /* Exec the command */
+    // 执行命令
     if (c->flags & CLIENT_MULTI &&
         c->cmd->proc != execCommand && c->cmd->proc != discardCommand &&
         c->cmd->proc != multiCommand && c->cmd->proc != watchCommand &&
         c->cmd->proc != resetCommand)
     {
+        // 执行
         queueMultiCommand(c);
+        // 响应
         addReply(c,shared.queued);
     } else {
         call(c,CMD_CALL_FULL);
@@ -5846,6 +5890,7 @@ void setupSignalHandlers(void) {
      * Otherwise, sa_handler is used. */
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
+    // 处理关闭信号
     act.sa_handler = sigShutdownHandler;
     sigaction(SIGTERM, &act, NULL);
     sigaction(SIGINT, &act, NULL);
@@ -6268,6 +6313,7 @@ int main(int argc, char **argv) {
     }
 #endif
 
+    // 初始化lib、服务器配置
     /* We need to initialize our libraries, and the server configuration. */
 #ifdef INIT_SETPROCTITLE_REPLACEMENT
     spt_init(argc, argv);
@@ -6310,6 +6356,7 @@ int main(int argc, char **argv) {
     /* We need to init sentinel right now as parsing the configuration file
      * in sentinel mode will have the effect of populating the sentinel
      * data structures with master nodes to monitor. */
+    // 哨兵初始化
     if (server.sentinel_mode) {
         initSentinelConfig();
         initSentinel();
@@ -6400,6 +6447,7 @@ int main(int argc, char **argv) {
     }
 
     readOOMScoreAdj();
+    // 初始化服务
     initServer();
     if (background || server.pidfile) createPidFile();
     if (server.set_proc_title) redisSetProcTitle(NULL);
@@ -6464,6 +6512,7 @@ int main(int argc, char **argv) {
     }
 
     /* Warning the user about suspicious maxmemory setting. */
+    // 配置内存限定少于1mb，警告
     if (server.maxmemory > 0 && server.maxmemory < 1024*1024) {
         serverLog(LL_WARNING,"WARNING: You specified a maxmemory value that is less than 1MB (current value is %llu bytes). Are you sure this is what you really want?", server.maxmemory);
     }
@@ -6471,7 +6520,13 @@ int main(int argc, char **argv) {
     redisSetCpuAffinity(server.server_cpulist);
     setOOMScoreAdj(-1);
 
+    /**
+     * el在initServer中创建了：aeCreateEventLoop
+    */
+    // 初始化网络io（应该是这里一直循环）
+    // 也就是文档说这个el监听新连接 
     aeMain(server.el);
+    // 这里就是程序结束循环停止进入, eventloop结束处理
     aeDeleteEventLoop(server.el);
     return 0;
 }

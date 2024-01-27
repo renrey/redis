@@ -163,6 +163,7 @@ typedef long long ustime_t; /* microsecond time type. */
  * of file descriptors we can handle are server.maxclients + RESERVED_FDS +
  * a few more to stay safe. Since RESERVED_FDS defaults to 32, we add 96
  * in order to make sure of not over provisioning more than 128 fds. */
+// server中用于网络io的fd数，默认就是server.maxclients配置 + 32(预留) + 96
 #define CONFIG_FDSET_INCR (CONFIG_MIN_RESERVED_FDS+96)
 
 /* OOM Score Adjustment classes. */
@@ -668,7 +669,7 @@ typedef struct RedisModuleDigest {
 #define OBJ_ENCODING_INTSET 6  /* Encoded as intset */
 #define OBJ_ENCODING_SKIPLIST 7  /* Encoded as skiplist */
 #define OBJ_ENCODING_EMBSTR 8  /* Embedded sds string encoding */
-#define OBJ_ENCODING_QUICKLIST 9 /* Encoded as linked list of ziplists */
+#define OBJ_ENCODING_QUICKLIST 9 /* Encoded as linked list of ziplists zip的链表形式*/
 #define OBJ_ENCODING_STREAM 10 /* Encoded as a radix tree of listpacks */
 
 #define LRU_BITS 24
@@ -679,14 +680,17 @@ typedef struct RedisModuleDigest {
 #define OBJ_STATIC_REFCOUNT (INT_MAX-1) /* Object allocated in the stack. */
 #define OBJ_FIRST_SPECIAL_REFCOUNT OBJ_STATIC_REFCOUNT
 typedef struct redisObject {
-    unsigned type:4;
-    unsigned encoding:4;
+    // 下面3个unsigned总共32位=4b
+    // 比起分别3个unsigned(4b*3=12b),节省8b
+    unsigned type:4;// 类型，4位
+    unsigned encoding:4;// 编码，4位
     unsigned lru:LRU_BITS; /* LRU time (relative to global lru_clock) or
                             * LFU data (least significant 8 bits frequency
                             * and most significant 16 bits access time). */
-    int refcount;
-    void *ptr;
-} robj;
+                            // 24位
+    int refcount; // 引用计数，4b
+    void *ptr; // 具体实现对象指针，8b
+} robj; // 16b 
 
 /* The a string name for an object's type as listed above
  * Native types are checked against the OBJ_STRING, OBJ_LIST, OBJ_* defines,
@@ -726,7 +730,7 @@ typedef struct redisDb {
     long long avg_ttl;          /* Average TTL, just for stats */
     unsigned long expires_cursor; /* Cursor of the active expire cycle. */
     list *defrag_later;         /* List of key names to attempt to defrag one by one, gradually. */
-} redisDb;
+} redisDb;// 72b
 
 /* Declare database backup that include redis main DBs and slots to keys map.
  * Definition is in db.c. We can't define it here since we define CLUSTER_SLOTS
@@ -869,12 +873,16 @@ typedef struct client {
     int resp;               /* RESP protocol version. Can be 2 or 3. */
     redisDb *db;            /* Pointer to currently SELECTed DB. */
     robj *name;             /* As set by CLIENT SETNAME. */
+    // 当前client的query buffer
     sds querybuf;           /* Buffer we use to accumulate client queries. */
+    // query buf已read到下标
     size_t qb_pos;          /* The position we have read in querybuf. */
+    // 对应client是master，这个buffer代表从这个master复制收到但未执行的
     sds pending_querybuf;   /* If this client is flagged as master, this buffer
                                represents the yet not applied portion of the
                                replication stream that we are receiving from
                                the master. */
+    // 最近（100ms或者更多）querybuf的大小峰值                 
     size_t querybuf_peak;   /* Recent (100ms or more) peak of querybuf size. */
     int argc;               /* Num of arguments of current command. */
     robj **argv;            /* Arguments of current command. */
@@ -953,7 +961,9 @@ typedef struct client {
     uint64_t client_cron_last_memory_usage;
     int      client_cron_last_memory_type;
     /* Response buffer */
+    // 响应buffer：下一个写入output buffer下标(已占用大小)
     int bufpos;
+    // 16k的output buffer
     char buf[PROTO_REPLY_CHUNK_BYTES];
 } client;
 
@@ -1615,6 +1625,7 @@ struct redisServer {
                                      backward compatibility with Redis <= 5. */
     int acl_pubsub_default;      /* Default ACL pub/sub channels flag */
     /* Assert & bug reporting */
+    // watchdog
     int watchdog_period;  /* Software watchdog period in ms. 0 = off */
     /* System hardware info */
     size_t system_memory_size;  /* Total memory in system as reported by OS */

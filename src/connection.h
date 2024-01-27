@@ -102,6 +102,7 @@ struct connection {
  */
 
 static inline int connAccept(connection *conn, ConnectionCallbackFunc accept_handler) {
+    // 实际调用connSocketAccept
     return conn->type->accept(conn, accept_handler);
 }
 

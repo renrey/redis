@@ -144,14 +144,16 @@ static int dictAdd(dict *ht, void *key, void *val) {
 
     /* Get the index of the new element, or -1 if
      * the element already exists. */
+     // 已存在，可能会进行扩容
     if ((index = _dictKeyIndex(ht, key)) == -1)
         return DICT_ERR;
 
     /* Allocates the memory and stores key */
+    // 申请entry空间
     entry = hi_malloc(sizeof(*entry));
     if (entry == NULL)
         return DICT_ERR;
-
+    // 头插法加入链表
     entry->next = ht->table[index];
     ht->table[index] = entry;
 
@@ -171,6 +173,7 @@ static int dictReplace(dict *ht, void *key, void *val) {
 
     /* Try to add the element. If the key
      * does not exists dictAdd will succeed. */
+     // 先尝试新增？
     if (dictAdd(ht, key, val) == DICT_OK)
         return 1;
     /* It already exists, get the entry */
@@ -197,21 +200,27 @@ static int dictDelete(dict *ht, const void *key) {
 
     if (ht->size == 0)
         return DICT_ERR;
+    // 计算hash，找到桶
     h = dictHashKey(ht, key) & ht->sizemask;
     de = ht->table[h];
 
     prevde = NULL;
+    // 遍历链表
     while(de) {
+        // 找到了
         if (dictCompareHashKeys(ht,key,de->key)) {
             /* Unlink the element from the list */
+            // 移除链表
             if (prevde)
                 prevde->next = de->next;
             else
                 ht->table[h] = de->next;
-
+            // 释放key、val的空间
             dictFreeEntryKey(ht,de);
             dictFreeEntryVal(ht,de);
+            // 释放entry空间
             hi_free(de);
+            // 统计-1
             ht->used--;
             return DICT_OK;
         }
@@ -257,8 +266,10 @@ static dictEntry *dictFind(dict *ht, const void *key) {
     unsigned int h;
 
     if (ht->size == 0) return NULL;
+    //bucker index
     h = dictHashKey(ht, key) & ht->sizemask;
     he = ht->table[h];
+    // iter list, find key
     while(he) {
         if (dictCompareHashKeys(ht, key, he->key))
             return he;
@@ -336,6 +347,7 @@ static int _dictKeyIndex(dict *ht, const void *key) {
     dictEntry *he;
 
     /* Expand the hashtable if needed */
+    // 判断是否需要扩容
     if (_dictExpandIfNeeded(ht) == DICT_ERR)
         return -1;
     /* Compute the key hash value */

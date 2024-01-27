@@ -58,14 +58,14 @@ static inline int sdsHdrSize(char type) {
 }
 
 static inline char sdsReqType(size_t string_size) {
-    if (string_size < 1<<5)
+    if (string_size < 1<<5)// 16
         return SDS_TYPE_5;
-    if (string_size < 1<<8)
+    if (string_size < 1<<8)//256
         return SDS_TYPE_8;
-    if (string_size < 1<<16)
+    if (string_size < 1<<16)//32768
         return SDS_TYPE_16;
 #if (LONG_MAX == LLONG_MAX)
-    if (string_size < 1ll<<32)
+    if (string_size < 1ll<<32)//2147483648
         return SDS_TYPE_32;
     return SDS_TYPE_64;
 #else
@@ -103,15 +103,17 @@ static inline size_t sdsTypeMaxSize(char type) {
 sds _sdsnewlen(const void *init, size_t initlen, int trymalloc) {
     void *sh;
     sds s;
+    // 看字符串长度，符合哪种
     char type = sdsReqType(initlen);
     /* Empty strings are usually created in order to append. Use type 8
      * since type 5 is not good at this. */
     if (type == SDS_TYPE_5 && initlen == 0) type = SDS_TYPE_8;
-    int hdrlen = sdsHdrSize(type);
+    int hdrlen = sdsHdrSize(type);// header头的长度
     unsigned char *fp; /* flags pointer. */
     size_t usable;
 
     assert(initlen + hdrlen + 1 > initlen); /* Catch size_t overflow */
+    // 分配空间 就是 头（对应b，如8就是3b）+ str长度（buf大小）+1
     sh = trymalloc?
         s_trymalloc_usable(hdrlen+initlen+1, &usable) :
         s_malloc_usable(hdrlen+initlen+1, &usable);
@@ -120,8 +122,11 @@ sds _sdsnewlen(const void *init, size_t initlen, int trymalloc) {
         init = NULL;
     else if (!init)
         memset(sh, 0, hdrlen+initlen+1);
+    // s就是buf数组
     s = (char*)sh+hdrlen;
+    // flag
     fp = ((unsigned char*)s)-1;
+    // -hdr-1,就是字符数组的长度
     usable = usable-hdrlen-1;
     if (usable > sdsTypeMaxSize(type))
         usable = sdsTypeMaxSize(type);
@@ -132,9 +137,9 @@ sds _sdsnewlen(const void *init, size_t initlen, int trymalloc) {
         }
         case SDS_TYPE_8: {
             SDS_HDR_VAR(8,s);
-            sh->len = initlen;
-            sh->alloc = usable;
-            *fp = type;
+            sh->len = initlen;// len代表str长度
+            sh->alloc = usable;// 字符数组的长度
+            *fp = type;// hdr类型
             break;
         }
         case SDS_TYPE_16: {
@@ -159,8 +164,11 @@ sds _sdsnewlen(const void *init, size_t initlen, int trymalloc) {
             break;
         }
     }
+    // 拷贝数据
     if (initlen && init)
+        // 拷贝
         memcpy(s, init, initlen);
+    // 预留的1位,放这个
     s[initlen] = '\0';
     return s;
 }

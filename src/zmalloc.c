@@ -214,16 +214,20 @@ void *ztryrealloc_usable(void *ptr, size_t size, size_t *usable) {
     /* Not freeing anything, just redirect to malloc. */
     if (ptr == NULL)
         return ztrymalloc_usable(size, usable);
-
+    // 原有空间有数据
 #ifdef HAVE_MALLOC_SIZE
+    // 获取原有大小
     oldsize = zmalloc_size(ptr);
+    // 就是原有地址空间扩容
     newptr = realloc(ptr,size);
+    // 失败
     if (newptr == NULL) {
         if (usable) *usable = 0;
         return NULL;
     }
 
     update_zmalloc_stat_free(oldsize);
+    // 获取分配后的空间
     size = zmalloc_size(newptr);
     update_zmalloc_stat_alloc(size);
     if (usable) *usable = size;

@@ -48,14 +48,14 @@
 #define DICT_NOTUSED(V) ((void) V)
 
 typedef struct dictEntry {
-    void *key;
+    void *key; // key : 8位
     union {
-        void *val;
+        void *val; // 指针
         uint64_t u64;
         int64_t s64;
         double d;
-    } v;
-    struct dictEntry *next;
+    } v;// val:联合体，8位，代表可能使用指针，or数字
+    struct dictEntry *next;// 下一项的指针，8位
 } dictEntry;
 
 typedef struct dictType {
@@ -71,17 +71,17 @@ typedef struct dictType {
 /* This is our hash table structure. Every dictionary has two of this as we
  * implement incremental rehashing, for the old to the new table. */
 typedef struct dictht {
-    dictEntry **table;
-    unsigned long size;
-    unsigned long sizemask;
-    unsigned long used;
+    dictEntry **table;// ** 二维数组，实际一段连续区域存放多个指针，一维：n个桶，二维：对应桶的头entry的指针
+    unsigned long size;// 当前ht大小
+    unsigned long sizemask; // size-1，用于计算索引 
+    unsigned long used;//已有节点数
 } dictht;
 
 typedef struct dict {
-    dictType *type;
-    void *privdata;
-    dictht ht[2];
-    long rehashidx; /* rehashing not in progress if rehashidx == -1 */
+    dictType *type;// 其实就是dict一些内置属性的封装对象，
+    void *privdata;// 
+    dictht ht[2]; // 初始2个ht的数组，就负责存放元素相关的，2个是用于rehash使用
+    long rehashidx; /* rehashing not in progress if rehashidx == -1 */ // -1代表没有在进行rehash
     int16_t pauserehash; /* If >0 rehashing is paused (<0 indicates coding error) */
 } dict;
 

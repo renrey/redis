@@ -115,10 +115,11 @@ list *listAddNodeHead(list *list, void *value)
 list *listAddNodeTail(list *list, void *value)
 {
     listNode *node;
-
+    // 先给value分配node空间
     if ((node = zmalloc(sizeof(*node))) == NULL)
         return NULL;
     node->value = value;
+    // 加入到链表中
     if (list->len == 0) {
         list->head = list->tail = node;
         node->prev = node->next = NULL;

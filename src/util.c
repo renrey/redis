@@ -347,6 +347,7 @@ int ll2string(char *dst, size_t dstlen, long long svalue) {
 
     /* The main loop works with 64bit unsigned integers for simplicity, so
      * we convert the number here and remember if it is negative. */
+     // 负数处理
     if (svalue < 0) {
         if (svalue != LLONG_MIN) {
             value = -svalue;

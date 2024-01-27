@@ -1,0 +1,101 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "Project",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "example::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-example-Debug-fc02c36ceac995919a70.json",
+					"name" : "example",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "example-glib::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-example-glib-Debug-57fd58233f47d650788a.json",
+					"name" : "example-glib",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "example-libev::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-example-libev-Debug-eb36dc570cdfc650b0f4.json",
+					"name" : "example-libev",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "example-libuv::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-example-libuv-Debug-5f2ef1145580e729f52c.json",
+					"name" : "example-libuv",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "example-macosx::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-example-macosx-Debug-3930963b14801eea35dd.json",
+					"name" : "example-macosx",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "example-push::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-example-push-Debug-cdff471a1f8ddcebdb9e.json",
+					"name" : "example-push",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/Users/rey/Documents/code/redis/build",
+		"source" : "/Users/rey/Documents/code/redis/deps/hiredis/examples"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 4
+	}
+}

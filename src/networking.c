@@ -92,7 +92,8 @@ void linkClient(client *c) {
     /* Note that we remember the linked list node where the client is stored,
      * this way removing the client in unlinkClient() will not require
      * a linear scan, but just a constant time operation. */
-    c->client_list_node = listLast(server.clients);
+     // 加入到server实例的clients链表中
+    c->client_list_node = listLast(server.clients);// client中记录链表的节点地址，就是如注释说的，避免扫描，直接常数时间移除
     uint64_t id = htonu64(c->id);
     raxInsert(server.clients_index,(unsigned char*)&id,sizeof(id),c,NULL);
 }
@@ -117,22 +118,23 @@ int authRequired(client *c) {
 }
 
 client *createClient(connection *conn) {
-    client *c = zmalloc(sizeof(client));
+    client *c = zmalloc(sizeof(client));//为client对象分配空间
 
     /* passing NULL as conn it is possible to create a non connected client.
      * This is useful since all the commands needs to be executed
      * in the context of a client. When commands are executed in other
      * contexts (for instance a Lua script) we need a non connected client. */
     if (conn) {
+        // nonblock、tcpnodelay的配置
         connNonBlock(conn);
         connEnableTcpNoDelay(conn);
         if (server.tcpkeepalive)
             connKeepAlive(conn,server.tcpkeepalive);
-        connSetReadHandler(conn, readQueryFromClient);
-        connSetPrivateData(conn, c);
+        connSetReadHandler(conn, readQueryFromClient); // 设置readable事件执行readQueryFromClient
+        connSetPrivateData(conn, c); // 把cliet绑定到connection的对象(方便conn对象需要用client时拿到)
     }
 
-    selectDb(c,0);
+    selectDb(c,0);// 默认绑定db0
     uint64_t client_id;
     atomicGetIncr(server.next_client_id, client_id, 1);
     c->id = client_id;
@@ -279,6 +281,8 @@ int prepareClientToWrite(client *c) {
      * not install a write handler. Instead, it will be done by
      * handleClientsWithPendingReadsUsingThreads() upon return.
      */
+
+     //clientInstallWriteHandler: 把client加入clients_pending_write ，告诉el需要发送响应
     if (!clientHasPendingReplies(c) && !(c->flags & CLIENT_PENDING_READ))
             clientInstallWriteHandler(c);
 
@@ -294,6 +298,8 @@ int prepareClientToWrite(client *c) {
  * Returns C_ERR if the buffer is full, or the reply list is not empty,
  * in which case the reply must be added to the reply list. */
 int _addReplyToBuffer(client *c, const char *s, size_t len) {
+    // output总（申请）大小（16kb）- Response buffer大小
+    // 得到剩余可用空间
     size_t available = sizeof(c->buf)-c->bufpos;
 
     if (c->flags & CLIENT_CLOSE_AFTER_REPLY) return C_OK;
@@ -303,9 +309,12 @@ int _addReplyToBuffer(client *c, const char *s, size_t len) {
     if (listLength(c->reply) > 0) return C_ERR;
 
     /* Check that the buffer has enough space available for this string. */
+    // 对象超过可用空间，error
     if (len > available) return C_ERR;
 
+    // 把s开始的内容（大小为len个）拷贝到outbuffer空间中的bufpos开始的空间
     memcpy(c->buf+c->bufpos,s,len);
+    // +已占用统计
     c->bufpos+=len;
     return C_OK;
 }
@@ -356,17 +365,24 @@ void _addReplyProtoToList(client *c, const char *s, size_t len) {
 
 /* Add the object 'obj' string representation to the client output buffer. */
 void addReply(client *c, robj *obj) {
+    // 加入clients_pending_write等待后续进行对io操作
     if (prepareClientToWrite(c) != C_OK) return;
 
+    // raw、embstr直接返回
     if (sdsEncodedObject(obj)) {
+        // 加入到client 的output buffer，响应的是sds
         if (_addReplyToBuffer(c,obj->ptr,sdslen(obj->ptr)) != C_OK)
             _addReplyProtoToList(c,obj->ptr,sdslen(obj->ptr));
+    // int:long数字 ，特殊处理-》返回数字
     } else if (obj->encoding == OBJ_ENCODING_INT) {
         /* For integer encoded strings we just convert it into a string
          * using our optimized function, and attach the resulting string
          * to the output buffer. */
+        // 32位char（1b）数组=》32b 
         char buf[32];
+        // 把指针地址值转成字符放到buf
         size_t len = ll2string(buf,sizeof(buf),(long)obj->ptr);
+        // 加入到buffer，响应的直接是buf数字
         if (_addReplyToBuffer(c,buf,len) != C_OK)
             _addReplyProtoToList(c,buf,len);
     } else {
@@ -1106,9 +1122,10 @@ void clientAcceptHandler(connection *conn) {
                           REDISMODULE_SUBEVENT_CLIENT_CHANGE_CONNECTED,
                           c);
 }
-
 #define MAX_ACCEPTS_PER_CALL 1000
+// 处理新的连接请求建立的accept
 static void acceptCommonHandler(connection *conn, int flags, char *ip) {
+    // 这里已经分配给这个连接创建的connection对象、还有早就分配好的fd
     client *c;
     char conninfo[100];
     UNUSED(ip);
@@ -1148,6 +1165,8 @@ static void acceptCommonHandler(connection *conn, int flags, char *ip) {
         return;
     }
 
+    // 创建client实例
+    // 上层使用的封装client（认为是一个外部客户端），io层才会看con
     /* Create connection and client */
     if ((c = createClient(conn)) == NULL) {
         serverLog(LL_WARNING,
@@ -1169,12 +1188,16 @@ static void acceptCommonHandler(connection *conn, int flags, char *ip) {
      *
      * Because of that, we must do nothing else afterwards.
      */
+     // accept 连接处理
+     // con状态变为CONN_STATE_CONNECTED(代表服务端已认为client连接建立了)，并执行clientAcceptHandler
+    // 
     if (connAccept(conn, clientAcceptHandler) == C_ERR) {
         char conninfo[100];
         if (connGetState(conn) == CONN_STATE_ERROR)
             serverLog(LL_WARNING,
                     "Error accepting a client connection: %s (conn: %s)",
                     connGetLastError(conn), connGetInfo(conn, conninfo, sizeof(conninfo)));
+         // 失败释放client           
         freeClient(connGetPrivateData(conn));
         return;
     }
@@ -1188,6 +1211,7 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     UNUSED(privdata);
 
     while(max--) {
+        // 建立tcp ， 主要生成交互的fd
         cfd = anetTcpAccept(server.neterr, fd, cip, sizeof(cip), &cport);
         if (cfd == ANET_ERR) {
             if (errno != EWOULDBLOCK)
@@ -1197,6 +1221,8 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
         }
         anetCloexec(cfd);
         serverLog(LL_VERBOSE,"Accepted %s:%d", cip, cport);
+        // connCreateAcceptedSocket：生成连接接对象（使用上面申请的fd）
+        // 处里accept事件
         acceptCommonHandler(connCreateAcceptedSocket(cfd),0,cip);
     }
 }
@@ -1594,7 +1620,7 @@ int writeToClient(client *c, int handler_installed) {
                 listDelNode(c->reply,listFirst(c->reply));
                 continue;
             }
-
+            // 执行write
             nwritten = connWrite(c->conn, o->buf + c->sentlen, objlen - c->sentlen);
             if (nwritten <= 0) break;
             c->sentlen += nwritten;
@@ -1706,6 +1732,7 @@ int handleClientsWithPendingWrites(void) {
             {
                 ae_barrier = 1;
             }
+            // 就是加入发送事件
             if (connSetWriteHandlerWithBarrier(c->conn, sendReplyToClient, ae_barrier) == C_ERR) {
                 freeClientAsync(c);
             }
@@ -1852,6 +1879,7 @@ int processInlineBuffer(client *c) {
 
     /* Create redis objects for all arguments. */
     for (c->argc = 0, j = 0; j < argc; j++) {
+        // 把参数成string对象
         c->argv[c->argc] = createObject(OBJ_STRING,argv[j]);
         c->argc++;
         c->argv_len_sum += sdslen(argv[j]);
@@ -2102,7 +2130,9 @@ int processCommandAndResetClient(client *c) {
     int deadclient = 0;
     client *old_client = server.current_client;
     server.current_client = c;
+    // 执行命令
     if (processCommand(c) == C_OK) {
+        // 成功后，主从相关
         commandProcessed(c);
     }
     if (server.current_client == NULL) deadclient = 1;
@@ -2226,6 +2256,7 @@ void readQueryFromClient(connection *conn) {
 
     /* Check if we want to read from the client later when exiting from
      * the event loop. This is the case if threaded I/O is enabled. */
+     // 多线程读
     if (postponeClientRead(c)) return;
 
     /* Update total number of reads on server */
@@ -2251,6 +2282,8 @@ void readQueryFromClient(connection *conn) {
     qblen = sdslen(c->querybuf);
     if (c->querybuf_peak < qblen) c->querybuf_peak = qblen;
     c->querybuf = sdsMakeRoomFor(c->querybuf, readlen);
+    // 执行connSocketRead
+    // 实际就是read命令
     nread = connRead(c->conn, c->querybuf+qblen, readlen);
     if (nread == -1) {
         if (connGetState(conn) == CONN_STATE_CONNECTED) {
@@ -2289,6 +2322,7 @@ void readQueryFromClient(connection *conn) {
 
     /* There is more data in the client input buffer, continue parsing it
      * in case to check if there is a full command to execute. */
+     // read命令把数据读到buffer后，处理命令
      processInputBuffer(c);
 }
 
@@ -3483,6 +3517,7 @@ void processEventsWhileBlocked(void) {
     ProcessingEventsWhileBlocked = 1;
     while (iterations--) {
         long long startval = server.events_processed_while_blocked;
+        // 调用多路复用api
         long long ae_events = aeProcessEvents(server.el,
             AE_FILE_EVENTS|AE_DONT_WAIT|
             AE_CALL_BEFORE_SLEEP|AE_CALL_AFTER_SLEEP);
@@ -3558,7 +3593,9 @@ void *IOThreadMain(void *myid) {
         listNode *ln;
         listRewind(io_threads_list[id],&li);
         while((ln = listNext(&li))) {
+            // 操作是client
             client *c = listNodeValue(ln);
+            // 具体io事件执行
             if (io_threads_op == IO_THREADS_OP_WRITE) {
                 writeToClient(c,0);
             } else if (io_threads_op == IO_THREADS_OP_READ) {
@@ -3673,6 +3710,7 @@ int handleClientsWithPendingWritesUsingThreads(void) {
     }
 
     /* Start threads if needed. */
+    // 无io线程重新启动
     if (!server.io_threads_active) startThreadedIO();
 
     /* Distribute the clients across N different lists. */
@@ -3680,6 +3718,7 @@ int handleClientsWithPendingWritesUsingThreads(void) {
     listNode *ln;
     listRewind(server.clients_pending_write,&li);
     int item_id = 0;
+    // 分配clients_pending_write的写事件到io线程的队列 
     while((ln = listNext(&li))) {
         client *c = listNodeValue(ln);
         c->flags &= ~CLIENT_PENDING_WRITE;
@@ -3705,6 +3744,7 @@ int handleClientsWithPendingWritesUsingThreads(void) {
     }
 
     /* Also use the main thread to process a slice of clients. */
+    // 执行写操作
     listRewind(io_threads_list[0],&li);
     while((ln = listNext(&li))) {
         client *c = listNodeValue(ln);
@@ -3713,6 +3753,7 @@ int handleClientsWithPendingWritesUsingThreads(void) {
     listEmpty(io_threads_list[0]);
 
     /* Wait for all the other threads to end their work. */
+    // 等待所有io线程执行完成
     while(1) {
         unsigned long pending = 0;
         for (int j = 1; j < server.io_threads_num; j++)
@@ -3728,6 +3769,7 @@ int handleClientsWithPendingWritesUsingThreads(void) {
 
         /* Install the write handler if there are pending writes in some
          * of the clients. */
+         // 注册写事件
         if (clientHasPendingReplies(c) &&
                 connSetWriteHandler(c->conn, sendReplyToClient) == AE_ERR)
         {
@@ -3748,11 +3790,13 @@ int handleClientsWithPendingWritesUsingThreads(void) {
  * pending read clients and flagged as such. */
 int postponeClientRead(client *c) {
     if (server.io_threads_active &&
-        server.io_threads_do_reads &&
+        server.io_threads_do_reads && // 开启多线程读
         !ProcessingEventsWhileBlocked &&
         !(c->flags & (CLIENT_MASTER|CLIENT_SLAVE|CLIENT_PENDING_READ|CLIENT_BLOCKED))) 
     {
+        // 状态更新
         c->flags |= CLIENT_PENDING_READ;
+        // 多线程放入到clients_pending_read中
         listAddNodeHead(server.clients_pending_read,c);
         return 1;
     } else {
@@ -3774,17 +3818,20 @@ int handleClientsWithPendingReadsUsingThreads(void) {
     /* Distribute the clients across N different lists. */
     listIter li;
     listNode *ln;
+    // 多线程待读的
     listRewind(server.clients_pending_read,&li);
     int item_id = 0;
     while((ln = listNext(&li))) {
         client *c = listNodeValue(ln);
+        // 分配给io线程，就是顺序id取模，保证均匀无倾斜
         int target_id = item_id % server.io_threads_num;
+        // 加入到对应线程的队列中
         listAddNodeTail(io_threads_list[target_id],c);
         item_id++;
     }
 
     /* Give the start condition to the waiting threads, by setting the
-     * start condition atomic var. */
+     * start condition atomic var. */ 
     io_threads_op = IO_THREADS_OP_READ;
     for (int j = 1; j < server.io_threads_num; j++) {
         int count = listLength(io_threads_list[j]);
@@ -3792,12 +3839,14 @@ int handleClientsWithPendingReadsUsingThreads(void) {
     }
 
     /* Also use the main thread to process a slice of clients. */
+
+    // 主线程也处理一部分读请求
     listRewind(io_threads_list[0],&li);
     while((ln = listNext(&li))) {
         client *c = listNodeValue(ln);
         readQueryFromClient(c->conn);
     }
-    listEmpty(io_threads_list[0]);
+    listEmpty(io_threads_list[0]);// 直到第一个io线程的队列无读请求
 
     /* Wait for all the other threads to end their work. */
     while(1) {
@@ -3808,6 +3857,7 @@ int handleClientsWithPendingReadsUsingThreads(void) {
     }
 
     /* Run the list of clients again to process the new buffers. */
+    // 
     while(listLength(server.clients_pending_read)) {
         ln = listFirst(server.clients_pending_read);
         client *c = listNodeValue(ln);
@@ -3815,6 +3865,7 @@ int handleClientsWithPendingReadsUsingThreads(void) {
         listDelNode(server.clients_pending_read,ln);
 
         serverAssert(!(c->flags & CLIENT_BLOCKED));
+        // 执行命令
         if (processPendingCommandsAndResetClient(c) == C_ERR) {
             /* If the client is no longer valid, we avoid
              * processing the client later. So we just go

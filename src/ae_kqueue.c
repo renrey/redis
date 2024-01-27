@@ -68,6 +68,7 @@ static int aeApiCreate(aeEventLoop *eventLoop) {
         zfree(state);
         return -1;
     }
+    // io阻塞队列相关
     state->kqfd = kqueue();
     if (state->kqfd == -1) {
         zfree(state->events);
@@ -77,6 +78,7 @@ static int aeApiCreate(aeEventLoop *eventLoop) {
     anetCloexec(state->kqfd);
     state->eventsMask = zmalloc(EVENT_MASK_MALLOC_SIZE(eventLoop->setsize));
     memset(state->eventsMask, 0, EVENT_MASK_MALLOC_SIZE(eventLoop->setsize));
+    // 事件状态绑定
     eventLoop->apidata = state;
     return 0;
 }
@@ -132,6 +134,7 @@ static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
     aeApiState *state = eventLoop->apidata;
     int retval, numevents = 0;
 
+// 有超时
     if (tvp != NULL) {
         struct timespec timeout;
         timeout.tv_sec = tvp->tv_sec;
@@ -139,6 +142,7 @@ static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
         retval = kevent(state->kqfd, NULL, 0, state->events, eventLoop->setsize,
                         &timeout);
     } else {
+        // 无超时
         retval = kevent(state->kqfd, NULL, 0, state->events, eventLoop->setsize,
                         NULL);
     }

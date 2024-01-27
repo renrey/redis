@@ -415,15 +415,21 @@ int getMaxmemoryState(size_t *total, size_t *logical, size_t *tofree, float *lev
 /* Return 1 if used memory is more than maxmemory after allocating more memory,
  * return 0 if not. Redis may reject user's requests or evict some keys if used
  * memory exceeds maxmemory, especially, when we allocate huge memory at once. */
+ // 返回1：代表在分配更多内存后，使用内存>max内存
+ // 0不是，没超过上限
 int overMaxmemoryAfterAlloc(size_t moremem) {
+    // 没限制总的最大内存
     if (!server.maxmemory) return  0; /* No limit. */
 
     /* Check quickly. */
     size_t mem_used = zmalloc_used_memory();
+    // 现有使用+申请的内存<= 最大，没超过上限返回0
     if (mem_used + moremem <= server.maxmemory) return 0;
 
+    // 释放没用的内存
     size_t overhead = freeMemoryGetNotCountedMemory();
     mem_used = (mem_used > overhead) ? mem_used - overhead : 0;
+    // 再判断一次
     return mem_used + moremem > server.maxmemory;
 }
 

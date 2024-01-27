@@ -50,7 +50,7 @@ struct __attribute__ ((__packed__)) sdshdr5 {
 };
 struct __attribute__ ((__packed__)) sdshdr8 {
     uint8_t len; /* used */
-    uint8_t alloc; /* excluding the header and null terminator */
+    uint8_t alloc; /* excluding the header and null terminator */ // 不包含header跟最后的所使用大小
     unsigned char flags; /* 3 lsb of type, 5 unused bits */
     char buf[];
 };
@@ -85,6 +85,7 @@ struct __attribute__ ((__packed__)) sdshdr64 {
 #define SDS_TYPE_5_LEN(f) ((f)>>SDS_TYPE_BITS)
 
 static inline size_t sdslen(const sds s) {
+    // 通过sds（char数组）末尾（最后1b），拿到sds的flag
     unsigned char flags = s[-1];
     switch(flags&SDS_TYPE_MASK) {
         case SDS_TYPE_5:

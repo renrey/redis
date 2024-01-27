@@ -47,7 +47,7 @@ typedef struct quicklistNode {
     struct quicklistNode *prev;
     struct quicklistNode *next;
     unsigned char *zl;
-    unsigned int sz;             /* ziplist size in bytes */
+    unsigned int sz;            // ziplist占用的字节数 /* ziplist size in bytes */
     unsigned int count : 16;     /* count of items in ziplist */
     unsigned int encoding : 2;   /* RAW==1 or LZF==2 */
     unsigned int container : 2;  /* NONE==1 or ZIPLIST==2 */
@@ -103,15 +103,19 @@ typedef struct quicklistBookmark {
  * 'bookmakrs are an optional feature that is used by realloc this struct,
  *      so that they don't consume memory when not used. */
 typedef struct quicklist {
-    quicklistNode *head;
-    quicklistNode *tail;
-    unsigned long count;        /* total count of all entries in all ziplists */
-    unsigned long len;          /* number of quicklistNodes */
-    int fill : QL_FILL_BITS;              /* fill factor for individual nodes */
-    unsigned int compress : QL_COMP_BITS; /* depth of end nodes not to compress;0=off */
-    unsigned int bookmark_count: QL_BM_BITS;
-    quicklistBookmark bookmarks[];
-} quicklist;
+    quicklistNode *head;// 8b, 头指针
+    quicklistNode *tail;//8b，尾指针
+    unsigned long count;   // 8b，所有元素总数     /* total count of all entries in all ziplists */
+    unsigned long len;    // 8b,  quicklistNodes节点数    /* number of quicklistNodes */
+    int fill : QL_FILL_BITS;   // 16bit(2b)，独立节点的填充因子？  初始=-2        /* fill factor for individual nodes */ 
+    // 范围：-5到32,767(15个1)
+    unsigned int compress : QL_COMP_BITS; //16bit（2b），
+     // 在quicklist末尾需要保留不压缩的quicklist节点数，0代表关闭压缩
+     // 范围：0到32,767（15个1）
+     //* depth of end nodes not to compress;0=off */
+    unsigned int bookmark_count: QL_BM_BITS; // 4bit，初始=0
+    quicklistBookmark bookmarks[];// 0b,
+} quicklist; // 40b
 
 typedef struct quicklistIter {
     const quicklist *quicklist;

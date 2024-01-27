@@ -48,6 +48,7 @@
 
 /* Include the best multiplexing layer supported by this system.
  * The following should be ordered by performances, descending. */
+ // 优先
 #ifdef HAVE_EVPORT
 #include "ae_evport.c"
 #else
@@ -70,6 +71,8 @@ aeEventLoop *aeCreateEventLoop(int setsize) {
     monotonicInit();    /* just in case the calling app didn't initialize */
 
     if ((eventLoop = zmalloc(sizeof(*eventLoop))) == NULL) goto err;
+    // setSzie因为是fd数，所以刚好就是每个fd一个事件
+    // 也就是events、fired就是对应一个fd的事件
     eventLoop->events = zmalloc(sizeof(aeFileEvent)*setsize);
     eventLoop->fired = zmalloc(sizeof(aeFiredEvent)*setsize);
     if (eventLoop->events == NULL || eventLoop->fired == NULL) goto err;
@@ -154,6 +157,7 @@ void aeStop(aeEventLoop *eventLoop) {
     eventLoop->stop = 1;
 }
 
+// 
 int aeCreateFileEvent(aeEventLoop *eventLoop, int fd, int mask,
         aeFileProc *proc, void *clientData)
 {
@@ -163,9 +167,13 @@ int aeCreateFileEvent(aeEventLoop *eventLoop, int fd, int mask,
     }
     aeFileEvent *fe = &eventLoop->events[fd];
 
+    // 新增事件
     if (aeApiAddEvent(eventLoop, fd, mask) == -1)
         return AE_ERR;
+
+    // 注册目标事件mask
     fe->mask |= mask;
+    // 根据目标，设置处理proc对象
     if (mask & AE_READABLE) fe->rfileProc = proc;
     if (mask & AE_WRITABLE) fe->wfileProc = proc;
     fe->clientData = clientData;
@@ -387,11 +395,15 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
             tvp = &tv;
         }
 
+        // 执行进入阻塞前！！！
+        // server的beforesleep
         if (eventLoop->beforesleep != NULL && flags & AE_CALL_BEFORE_SLEEP)
             eventLoop->beforesleep(eventLoop);
 
         /* Call the multiplexing API, will return only on timeout or when
          * some event fires. */
+        // 调用多路复用api，在超时or有事件发生才会返回
+        // linux 上实际使用epoll，mac使用kqueue
         numevents = aeApiPoll(eventLoop, tvp);
 
         /* After sleep callback. */
@@ -481,8 +493,10 @@ int aeWait(int fd, int mask, long long milliseconds) {
     }
 }
 
+// 文档上这个用监听新连接
 void aeMain(aeEventLoop *eventLoop) {
     eventLoop->stop = 0;
+    // 一直循环，直到标志位stop被更新为1
     while (!eventLoop->stop) {
         aeProcessEvents(eventLoop, AE_ALL_EVENTS|
                                    AE_CALL_BEFORE_SLEEP|
@@ -494,6 +508,8 @@ char *aeGetApiName(void) {
     return aeApiName();
 }
 
+
+// 就是保存server的2个sleep函数
 void aeSetBeforeSleepProc(aeEventLoop *eventLoop, aeBeforeSleepProc *beforesleep) {
     eventLoop->beforesleep = beforesleep;
 }

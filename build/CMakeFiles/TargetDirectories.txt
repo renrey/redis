@@ -1,0 +1,8 @@
+/Users/rey/Documents/code/redis/build/CMakeFiles/example-glib.dir
+/Users/rey/Documents/code/redis/build/CMakeFiles/example-libev.dir
+/Users/rey/Documents/code/redis/build/CMakeFiles/example-libuv.dir
+/Users/rey/Documents/code/redis/build/CMakeFiles/example-macosx.dir
+/Users/rey/Documents/code/redis/build/CMakeFiles/example.dir
+/Users/rey/Documents/code/redis/build/CMakeFiles/example-push.dir
+/Users/rey/Documents/code/redis/build/CMakeFiles/edit_cache.dir
+/Users/rey/Documents/code/redis/build/CMakeFiles/rebuild_cache.dir

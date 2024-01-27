@@ -170,6 +170,7 @@ int dbAsyncDelete(redisDb *db, robj *key) {
          * equivalent to just calling decrRefCount(). */
         if (free_effort > LAZYFREE_THRESHOLD && val->refcount == 1) {
             atomicIncr(lazyfree_objects,1);
+            // 交给后台去清理空间
             bioCreateLazyFreeJob(lazyfreeFreeObject,1, val);
             dictSetVal(db->dict,de,NULL);
         }

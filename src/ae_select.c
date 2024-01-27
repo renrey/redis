@@ -88,6 +88,7 @@ static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
             int mask = 0;
             aeFileEvent *fe = &eventLoop->events[j];
 
+            // 自己去查看设置当前fd可用事件
             if (fe->mask == AE_NONE) continue;
             if (fe->mask & AE_READABLE && FD_ISSET(j,&state->_rfds))
                 mask |= AE_READABLE;

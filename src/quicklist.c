@@ -104,6 +104,7 @@ quicklist *quicklistCreate(void) {
     quicklist->len = 0;
     quicklist->count = 0;
     quicklist->compress = 0;
+    // 默认=-2
     quicklist->fill = -2;
     quicklist->bookmark_count = 0;
     return quicklist;
@@ -111,6 +112,7 @@ quicklist *quicklistCreate(void) {
 
 #define COMPRESS_MAX ((1 << QL_COMP_BITS)-1)
 void quicklistSetCompressDepth(quicklist *quicklist, int compress) {
+    // 范围：0到32,767（15个1）
     if (compress > COMPRESS_MAX) {
         compress = COMPRESS_MAX;
     } else if (compress < 0) {
@@ -121,8 +123,11 @@ void quicklistSetCompressDepth(quicklist *quicklist, int compress) {
 
 #define FILL_MAX ((1 << (QL_FILL_BITS-1))-1)
 void quicklistSetFill(quicklist *quicklist, int fill) {
+    // FILL_MAX:二进制15个1 ，32,767
+    // 范围：-5到32,767（15个1）
     if (fill > FILL_MAX) {
         fill = FILL_MAX;
+    // 小于下限：调到下限    
     } else if (fill < -5) {
         fill = -5;
     }
@@ -408,11 +413,15 @@ REDIS_STATIC void _quicklistInsertNodeAfter(quicklist *quicklist,
 REDIS_STATIC int
 _quicklistNodeSizeMeetsOptimizationRequirement(const size_t sz,
                                                const int fill) {
+    // fill>=0，不可                                            
     if (fill >= 0)
         return 0;
 
-    size_t offset = (-fill) - 1;
+    size_t offset = (-fill) - 1;//默认-2时，这个等于1
+    // 默认40/8=5
+    // 即offset <5
     if (offset < (sizeof(optimization_level) / sizeof(*optimization_level))) {
+        // 插入后占用字节数不超过 指定的level（默认就是8192，8k），可插入
         if (sz <= optimization_level[offset]) {
             return 1;
         } else {
@@ -427,35 +436,59 @@ _quicklistNodeSizeMeetsOptimizationRequirement(const size_t sz,
 
 REDIS_STATIC int _quicklistNodeAllowInsert(const quicklistNode *node,
                                            const int fill, const size_t sz) {
+    // 应该是验证有无节点 -》 无节点应该返回0                                                                                        
+    // 无时!node = false，unlikely判断0时，返回true 
     if (unlikely(!node))
         return 0;
 
     int ziplist_overhead;
     /* size of previous offset */
+    //根据本次内容长度，得到ziplist_overhead
     if (sz < 254)
-        ziplist_overhead = 1;
+        ziplist_overhead = 1;// 应该这个1位
     else
         ziplist_overhead = 5;
 
     /* size of forward offset */
+    // 小于64，则+1
     if (sz < 64)
         ziplist_overhead += 1;
+    // 64<= sz<16384,+2
     else if (likely(sz < 16384))
         ziplist_overhead += 2;
+    // >=16384，+5
     else
         ziplist_overhead += 5;
 
     /* new_sz overestimates if 'sz' encodes to an integer type */
+
+    // 计算插入的长度
+    // 头的sz（就是ziplist占用的字节数） + 本次内容的size + ziplist_overhead
     unsigned int new_sz = node->sz + sz + ziplist_overhead;
+
+    // 总结下下面的是否可插入判断
+    // 主要是看设置的fill
+    // -1<=fill<=-5时，代表插入后大小的上限等级（有5个，-1到-5代表第1个8k到第5个64k），默认-2，即不超过8k即可
+    // 当上面判断不符合 or 当前fill不在等级时，则先过滤掉大于8k
+    // 此时（new_sz<=8k）,fill 代表是可插入ziplist元素上限，<上限,可插入
+
+    // 当前fill可在optimization_level选（-1<=fill<=-5 才能选，）
+    // 且 插入后的大小不超过optimization_level选择的大小（默认-2选的是8k）
+    // 即默认fill=-2，ziplist占用字节数<=8k，这样可插入 
     if (likely(_quicklistNodeSizeMeetsOptimizationRequirement(new_sz, fill)))
         return 1;
     /* when we return 1 above we know that the limit is a size limit (which is
      * safe, see comments next to optimization_level and SIZE_SAFETY_LIMIT) */
+    // 大于8k,无法继续，证明上一个判断是fill不符合 
     else if (!sizeMeetsSafetyLimit(new_sz))
         return 0;
+    // 这里new_sz <=8k, 但fill不符合（> -1 or <-5）
+    // ziplist数量< fill 
+    // 归纳下面其实就是 new_sz <=8k, fill设置作为是否可以插入数组上限（小于即可插入）
     else if ((int)node->count < fill)
         return 1;
     else
+        // count >= fill 无法插入
         return 0;
 }
 
@@ -490,21 +523,37 @@ REDIS_STATIC int _quicklistNodeAllowMerge(const quicklistNode *a,
  * Returns 0 if used existing head.
  * Returns 1 if new head created. */
 int quicklistPushHead(quicklist *quicklist, void *value, size_t sz) {
+    // 获取head指针
     quicklistNode *orig_head = quicklist->head;
     assert(sz < UINT32_MAX); /* TODO: add support for quicklist nodes that are sds encoded (not zipped) */
+    // _quicklistNodeAllowInsert是true 
+    // 里面算插入后的大小
     if (likely(
             _quicklistNodeAllowInsert(quicklist->head, quicklist->fill, sz))) {
+
+        // 1. 插入到当前的head的ziplist        
+        // 2. 这里会更新head的zl =》即返回的是新的头节点，里面使用头插法       
         quicklist->head->zl =
             ziplistPush(quicklist->head->zl, value, sz, ZIPLIST_HEAD);
         quicklistNodeUpdateSz(quicklist->head);
     } else {
-        quicklistNode *node = quicklistCreateNode();
+        // 几个条件回到这里，需要新建ziplist
+        // 1. 当前无头节点
+        // 2. 插入后大小fill等级判断不通过，且大小超过8k（此时fill选择等级）
+        // 3. 插入后大小fill等级判断不通过且小于8k，但ziplist数量超过fill（此时fill作为8k以内的ziplist数量上限）
+
+        quicklistNode *node = quicklistCreateNode();// 新建节点
+        // 1. 先建个ziplist
+        // 2. 再ziplistPush把value（字符数组的指针）插入到ziplist
         node->zl = ziplistPush(ziplistNew(), value, sz, ZIPLIST_HEAD);
 
+        // 3.更新
         quicklistNodeUpdateSz(node);
         _quicklistInsertNodeBefore(quicklist, quicklist->head, node);
     }
+    // 统计+1
     quicklist->count++;
+    // 头指针+1？即新的
     quicklist->head->count++;
     return (orig_head != quicklist->head);
 }
@@ -1096,7 +1145,7 @@ quicklistIter *quicklistGetIteratorAtIdx(const quicklist *quicklist,
                                          const int direction,
                                          const long long idx) {
     quicklistEntry entry;
-
+    // 找到index所在的entry作为开始
     if (quicklistIndex(quicklist, idx, &entry)) {
         quicklistIter *base = quicklistGetIterator(quicklist, direction);
         base->zi = NULL;
@@ -1251,41 +1300,52 @@ int quicklistIndex(const quicklist *quicklist, const long long idx,
     quicklistNode *n;
     unsigned long long accum = 0;
     unsigned long long index;
+    // idx 正的正向，负数的反响
     int forward = idx < 0 ? 0 : 1; /* < 0 -> reverse, 0+ -> forward */
 
     initEntry(entry);
     entry->quicklist = quicklist;
 
+    // 反向从尾部
     if (!forward) {
         index = (-idx) - 1;
         n = quicklist->tail;
     } else {
+        // 头部
         index = idx;
         n = quicklist->head;
     }
 
+    // index超过总数
     if (index >= quicklist->count)
         return 0;
 
     while (likely(n)) {
+        // accum就是当前n的第一个entry在总体list上的下标，即这段的开始下标
+        // +count 超过了index，代表在当前n中
         if ((accum + n->count) > index) {
             break;
         } else {
             D("Skipping over (%p) %u at accum %lld", (void *)n, n->count,
               accum);
+            // 当前已到下标 + n里ziplist数量 得到当前 
             accum += n->count;
+            // n指向下个
             n = forward ? n->next : n->prev;
         }
     }
 
+    // 没有n了
     if (!n)
         return 0;
 
     D("Found node: %p at accum %llu, idx %llu, sub+ %llu, sub- %llu", (void *)n,
       accum, index, index - accum, (-index) - 1 + accum);
 
+    // 结果entry 直接关联所在的n  
     entry->node = n;
     if (forward) {
+        // 通过list上index计算目标index在当前段的offset偏移量！！！
         /* forward = normal head-to-tail offset. */
         entry->offset = index - accum;
     } else {
@@ -1294,8 +1354,12 @@ int quicklistIndex(const quicklist *quicklist, const long long idx,
         entry->offset = (-index) - 1 + accum;
     }
 
+    // 解压目标quicklistNode, 后面使用
     quicklistDecompressNodeForUse(entry->node);
+    // zi = 对应index所在entry
     entry->zi = ziplistIndex(entry->node->zl, entry->offset);
+
+    // 从entry中解析内容
     if (!ziplistGet(entry->zi, &entry->value, &entry->sz, &entry->longval))
         assert(0); /* This can happen on corrupt ziplist with fake entry count. */
     /* The caller will use our result, so we don't re-compress here.
@@ -1438,6 +1502,8 @@ int quicklistPop(quicklist *quicklist, int where, unsigned char **data,
 void quicklistPush(quicklist *quicklist, void *value, const size_t sz,
                    int where) {
     if (where == QUICKLIST_HEAD) {
+        // 从头插入
+        // sz：字符数组长度，value：字符数组
         quicklistPushHead(quicklist, value, sz);
     } else if (where == QUICKLIST_TAIL) {
         quicklistPushTail(quicklist, value, sz);

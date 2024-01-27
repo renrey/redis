@@ -61,6 +61,7 @@ void updateLFU(robj *val) {
  * implementations that should instead rely on lookupKeyRead(),
  * lookupKeyWrite() and lookupKeyReadWithFlags(). */
 robj *lookupKey(redisDb *db, robj *key, int flags) {
+    // db 的dict中查找 
     dictEntry *de = dictFind(db->dict,key->ptr);
     if (de) {
         robj *val = dictGetVal(de);
@@ -77,6 +78,7 @@ robj *lookupKey(redisDb *db, robj *key, int flags) {
         }
         return val;
     } else {
+        // 没找到当前key，返回NULL
         return NULL;
     }
 }
@@ -106,6 +108,7 @@ robj *lookupKey(redisDb *db, robj *key, int flags) {
 robj *lookupKeyReadWithFlags(redisDb *db, robj *key, int flags) {
     robj *val;
 
+    // 过期验证
     if (expireIfNeeded(db,key) == 1) {
         /* If we are in the context of a master, expireIfNeeded() returns 1
          * when the key is no longer valid, so we can return NULL ASAP. */
@@ -132,6 +135,8 @@ robj *lookupKeyReadWithFlags(redisDb *db, robj *key, int flags) {
             goto keymiss;
         }
     }
+
+    // 获取val
     val = lookupKey(db,key,flags);
     if (val == NULL)
         goto keymiss;
@@ -257,9 +262,11 @@ void dbOverwrite(redisDb *db, robj *key, robj *val) {
  * The client 'c' argument may be set to NULL if the operation is performed
  * in a context where there is no clear client performing the operation. */
 void genericSetKey(client *c, redisDb *db, robj *key, robj *val, int keepttl, int signal) {
+    // 没有则新增
     if (lookupKeyWrite(db,key) == NULL) {
         dbAdd(db,key,val);
     } else {
+        // 已有重写
         dbOverwrite(db,key,val);
     }
     incrRefCount(val);
@@ -315,13 +322,18 @@ robj *dbRandomKey(redisDb *db) {
 int dbSyncDelete(redisDb *db, robj *key) {
     /* Deleting an entry from the expires dict will not free the sds of
      * the key, because it is shared with the main dictionary. */
+     // 从expires中删除key
     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
+    // 从dict删除
     dictEntry *de = dictUnlink(db->dict,key->ptr);
     if (de) {
+        // 拿到val内容
         robj *val = dictGetVal(de);
         /* Tells the module that the key has been unlinked from the database. */
+        // 告诉其他模块
         moduleNotifyKeyUnlink(key,val);
         dictFreeUnlinkedEntry(db->dict,de);
+        // cluster过期删除key
         if (server.cluster_enabled) slotToKeyDel(key->ptr);
         return 1;
     } else {
@@ -365,10 +377,14 @@ int dbDelete(redisDb *db, robj *key) {
  */
 robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
     serverAssert(o->type == OBJ_STRING);
+    // long、embstr执行
     if (o->refcount != 1 || o->encoding != OBJ_ENCODING_RAW) {
+        // 先解析
         robj *decoded = getDecodedObject(o);
+        // 创建新的raw对象
         o = createRawStringObject(decoded->ptr, sdslen(decoded->ptr));
         decrRefCount(decoded);
+        // 把raw对象（rbj）更新到dict
         dbOverwrite(db,key,o);
     }
     return o;
@@ -551,6 +567,7 @@ void restoreDbBackup(dbBackup *buckup) {
 int selectDb(client *c, int id) {
     if (id < 0 || id >= server.dbnum)
         return C_ERR;
+    // 指定client的db
     c->db = &server.db[id];
     return C_OK;
 }
@@ -749,11 +766,13 @@ void randomkeyCommand(client *c) {
 void keysCommand(client *c) {
     dictIterator *di;
     dictEntry *de;
+    // 查找模式
     sds pattern = c->argv[1]->ptr;
     int plen = sdslen(pattern), allkeys;
     unsigned long numkeys = 0;
     void *replylen = addReplyDeferredLen(c);
 
+    // 这个迭代器就是对着这个db的dict执行的
     di = dictGetSafeIterator(c->db->dict);
     allkeys = (pattern[0] == '*' && plen == 1);
     while((de = dictNext(di)) != NULL) {
@@ -782,6 +801,7 @@ void scanCallback(void *privdata, const dictEntry *de) {
     robj *key, *val = NULL;
 
     if (o == NULL) {
+        // 就是从dict
         sds sdskey = dictGetKey(de);
         key = createStringObject(sdskey, sdslen(sdskey));
     } else if (o->type == OBJ_SET) {
@@ -799,8 +819,9 @@ void scanCallback(void *privdata, const dictEntry *de) {
     } else {
         serverPanic("Type not handled in SCAN callback.");
     }
-
+    // 插入list
     listAddNodeTail(keys, key);
+    // scan hash、zset
     if (val) listAddNodeTail(keys, val);
 }
 
@@ -814,6 +835,7 @@ int parseScanCursorOrReply(client *c, robj *o, unsigned long *cursor) {
     /* Use strtoul() because we need an *unsigned* long, so
      * getLongLongFromObject() does not cover the whole cursor space. */
     errno = 0;
+    // 转成cursor
     *cursor = strtoul(o->ptr, &eptr, 10);
     if (isspace(((char*)o->ptr)[0]) || eptr[0] != '\0' || errno == ERANGE)
     {
@@ -838,7 +860,7 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
     int i, j;
     list *keys = listCreate();
     listNode *node, *nextnode;
-    long count = 10;
+    long count = 10; // 没指定默认10个
     sds pat = NULL;
     sds typename = NULL;
     int patlen = 0, use_pattern = 0;
@@ -853,9 +875,11 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
     i = (o == NULL) ? 2 : 3; /* Skip the key argument if needed. */
 
     /* Step 1: Parse options. */
+    // 解析参数
     while (i < c->argc) {
         j = c->argc - i;
         if (!strcasecmp(c->argv[i]->ptr, "count") && j >= 2) {
+            // 解析count
             if (getLongFromObjectOrReply(c, c->argv[i+1], &count, NULL)
                 != C_OK)
             {
@@ -896,7 +920,9 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
      * cursor to zero to signal the end of the iteration. */
 
     /* Handle the case of a hash table. */
+    // 迭代集合
     ht = NULL;
+    // 没传入，就是默认scan全局
     if (o == NULL) {
         ht = c->db->dict;
     } else if (o->type == OBJ_SET && o->encoding == OBJ_ENCODING_HT) {
@@ -910,12 +936,14 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
         count *= 2; /* We return key / value for this type. */
     }
 
+    // 扫描hashtable
     if (ht) {
         void *privdata[2];
         /* We set the max number of iterations to ten times the specified
          * COUNT, so if the hash table is in a pathological state (very
          * sparsely populated) we avoid to block too much time at the cost
          * of returning no or very few elements. */
+         // 最多迭代次数，默认100次
         long maxiterations = count*10;
 
         /* We pass two pointers to the callback: the list to which it will
@@ -923,6 +951,7 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
          * it is possible to fetch more data in a type-dependent way. */
         privdata[0] = keys;
         privdata[1] = o;
+        // 迭代，有个count与maxiterations做终止防止循环太久
         do {
             cursor = dictScan(ht, cursor, scanCallback, NULL, privdata);
         } while (cursor &&
@@ -961,6 +990,7 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
         int filter = 0;
 
         /* Filter element if it does not match the pattern. */
+        // 过滤正则
         if (use_pattern) {
             if (sdsEncodedObject(kobj)) {
                 if (!stringmatchlen(pat, patlen, kobj->ptr, sdslen(kobj->ptr), 0))
@@ -976,6 +1006,7 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
         }
 
         /* Filter an element if it isn't the type we want. */
+        // 类型过滤
         if (!filter && o == NULL && typename){
             robj* typecheck = lookupKeyReadWithFlags(c->db, kobj, LOOKUP_NOTOUCH);
             char* type = getObjectTypeName(typecheck);
@@ -983,6 +1014,7 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
         }
 
         /* Filter element if it is an expired key. */
+        // 过期
         if (!filter && o == NULL && expireIfNeeded(c->db, kobj)) filter = 1;
 
         /* Remove the element and its associated value if needed. */
@@ -1008,17 +1040,18 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
     }
 
     /* Step 4: Reply to the client. */
-    addReplyArrayLen(c, 2);
+    // 响应
+    addReplyArrayLen(c, 2); // 1个长度
     addReplyBulkLongLong(c,cursor);
 
     addReplyArrayLen(c, listLength(keys));
     while ((node = listFirst(keys)) != NULL) {
         robj *kobj = listNodeValue(node);
-        addReplyBulk(c, kobj);
+        addReplyBulk(c, kobj);// 发送key
         decrRefCount(kobj);
-        listDelNode(keys, node);
+        listDelNode(keys, node);// 从keys删除
     }
-
+    // 清理
 cleanup:
     listSetFreeMethod(keys,decrRefCountVoid);
     listRelease(keys);
@@ -1027,6 +1060,7 @@ cleanup:
 /* The SCAN command completely relies on scanGenericCommand. */
 void scanCommand(client *c) {
     unsigned long cursor;
+    // argv1 就是匹配模式
     if (parseScanCursorOrReply(c,c->argv[1],&cursor) == C_ERR) return;
     scanGenericCommand(c,NULL,cursor);
 }
@@ -1429,12 +1463,14 @@ long long getExpire(redisDb *db, robj *key) {
     dictEntry *de;
 
     /* No expire? return ASAP */
+    // 从expire的ditc获取
     if (dictSize(db->expires) == 0 ||
        (de = dictFind(db->expires,key->ptr)) == NULL) return -1;
 
     /* The entry was found in the expire dict, this means it should also
      * be present in the main dict (safety check). */
     serverAssertWithInfo(NULL,key,dictFind(db->dict,key->ptr) != NULL);
+    // 返回过期时间,就是s64
     return dictGetSignedIntegerVal(de);
 }
 
@@ -1442,10 +1478,14 @@ long long getExpire(redisDb *db, robj *key) {
 void deleteExpiredKeyAndPropagate(redisDb *db, robj *keyobj) {
     mstime_t expire_latency;
     latencyStartMonitor(expire_latency);
+
+    // 过期删除
+    // 
     if (server.lazyfree_lazy_expire)
-        dbAsyncDelete(db,keyobj);
+        dbAsyncDelete(db,keyobj);// 异步删除（只是从2个dict移除）
     else
-        dbSyncDelete(db,keyobj);
+        dbSyncDelete(db,keyobj);//同步
+
     latencyEndMonitor(expire_latency);
     latencyAddSampleIfNeeded("expire-del",expire_latency);
     notifyKeyspaceEvent(NOTIFY_EXPIRED,"expired",keyobj,db->id);
@@ -1483,6 +1523,7 @@ void propagateExpire(redisDb *db, robj *key, int lazy) {
 
 /* Check if the key is expired. */
 int keyIsExpired(redisDb *db, robj *key) {
+    // 获取key过去时间（准确）
     mstime_t when = getExpire(db,key);
     mstime_t now;
 
@@ -1558,6 +1599,7 @@ int expireIfNeeded(redisDb *db, robj *key) {
     if (checkClientPauseTimeoutAndReturnIfPaused()) return 1;
 
     /* Delete the key */
+    // 删除过期key
     deleteExpiredKeyAndPropagate(db,key);
     return 1;
 }

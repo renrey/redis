@@ -75,6 +75,7 @@ ConnectionType CT_Socket;
  */
 
 connection *connCreateSocket() {
+    // 分配链接对象空间
     connection *conn = zcalloc(sizeof(connection));
     conn->type = &CT_Socket;
     conn->fd = -1;
@@ -93,9 +94,10 @@ connection *connCreateSocket() {
  * but could but possible with other protocols).
  */
 connection *connCreateAcceptedSocket(int fd) {
+    // 创建（分配）连接对象的空间
     connection *conn = connCreateSocket();
-    conn->fd = fd;
-    conn->state = CONN_STATE_ACCEPTING;
+    conn->fd = fd;// 绑定fd
+    conn->state = CONN_STATE_ACCEPTING;// 状态接收中—
     return conn;
 }
 
@@ -198,10 +200,13 @@ static int connSocketRead(connection *conn, void *buf, size_t buf_len) {
 static int connSocketAccept(connection *conn, ConnectionCallbackFunc accept_handler) {
     int ret = C_OK;
 
+    // 更新状态CONN_STATE_ACCEPTING-》 CONN_STATE_CONNECTED
     if (conn->state != CONN_STATE_ACCEPTING) return C_ERR;
     conn->state = CONN_STATE_CONNECTED;
 
     connIncrRefs(conn);
+
+    // 调用handler
     if (!callHandler(conn, accept_handler)) ret = C_ERR;
     connDecrRefs(conn);
 
@@ -345,6 +350,7 @@ static int connSocketGetType(connection *conn) {
     return CONN_TYPE_SOCKET;
 }
 
+// 当前连接类型
 ConnectionType CT_Socket = {
     .ae_handler = connSocketEventHandler,
     .close = connSocketClose,

@@ -80,7 +80,7 @@ static int checkStringLength(client *c, long long size, long long append) {
 
 void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire, int unit, robj *ok_reply, robj *abort_reply) {
     long long milliseconds = 0, when = 0; /* initialized to avoid any harmness warning */
-
+    // 参数需要存在，已过期判断
     if (expire) {
         if (getLongLongFromObjectOrReply(c, expire, &milliseconds, NULL) != C_OK)
             return;
@@ -111,8 +111,9 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
         if (getGenericCommand(c) == C_ERR) return;
     }
 
+    // set key执行
     genericSetKey(c,c->db,key, val,flags & OBJ_KEEPTTL,1);
-    server.dirty++;
+    server.dirty++;// 修改+1
     notifyKeyspaceEvent(NOTIFY_STRING,"set",key,c->db->id);
     if (expire) {
         setExpire(c,c->db,key,when);
@@ -265,10 +266,11 @@ void setCommand(client *c) {
     int unit = UNIT_SECONDS;
     int flags = OBJ_NO_FLAGS;
 
+    // 转换命令参数
     if (parseExtendedStringArgumentsOrReply(c,&flags,&unit,&expire,COMMAND_SET) != C_OK) {
         return;
     }
-
+    // 对val编码
     c->argv[2] = tryObjectEncoding(c->argv[2]);
     setGenericCommand(c,flags,c->argv[1],c->argv[2],expire,unit,NULL,NULL);
 }
@@ -294,6 +296,7 @@ int getGenericCommand(client *c) {
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.null[c->resp])) == NULL)
         return C_OK;
 
+    // 必须是string
     if (checkType(c,o,OBJ_STRING)) {
         return C_ERR;
     }
@@ -418,7 +421,9 @@ void getdelCommand(client *c) {
 
 void getsetCommand(client *c) {
     if (getGenericCommand(c) == C_ERR) return;
+    // val 编码
     c->argv[2] = tryObjectEncoding(c->argv[2]);
+    // 
     setKey(c,c->db,c->argv[1],c->argv[2]);
     notifyKeyspaceEvent(NOTIFY_STRING,"set",c->argv[1],c->db->id);
     server.dirty++;
@@ -586,8 +591,10 @@ void incrDecrCommand(client *c, long long incr) {
     long long value, oldvalue;
     robj *o, *new;
 
+    // 找到val的robj
     o = lookupKeyWrite(c->db,c->argv[1]);
     if (checkType(c,o,OBJ_STRING)) return;
+    // 从里面获取value （long）
     if (getLongLongFromObjectOrReply(c,o,&value,NULL) != C_OK) return;
 
     oldvalue = value;
@@ -598,6 +605,7 @@ void incrDecrCommand(client *c, long long incr) {
     }
     value += incr;
 
+    // 原来就是int，而且没超过long范围
     if (o && o->refcount == 1 && o->encoding == OBJ_ENCODING_INT &&
         (value < 0 || value >= OBJ_SHARED_INTEGERS) &&
         value >= LONG_MIN && value <= LONG_MAX)
@@ -605,6 +613,9 @@ void incrDecrCommand(client *c, long long incr) {
         new = o;
         o->ptr = (void*)((long)value);
     } else {
+        // 例如对超过long的+1会每次重新生成对象
+        // 原来对象不能超过20，不然每次都是创建新对象
+        // 重新创建robj
         new = createStringObjectFromLongLongForValue(value);
         if (o) {
             dbOverwrite(c->db,c->argv[1],new);
@@ -680,6 +691,7 @@ void appendCommand(client *c) {
     robj *o, *append;
 
     o = lookupKeyWrite(c->db,c->argv[1]);
+    // 没有则新建
     if (o == NULL) {
         /* Create the key */
         c->argv[2] = tryObjectEncoding(c->argv[2]);
@@ -698,8 +710,9 @@ void appendCommand(client *c) {
 
         /* Append the value */
         o = dbUnshareStringValue(c->db,c->argv[1],o);
+        // 对raw对象插入
         o->ptr = sdscatlen(o->ptr,append->ptr,sdslen(append->ptr));
-        totlen = sdslen(o->ptr);
+        totlen = sdslen(o->ptr);// 返回增加后长度
     }
     signalModifiedKey(c,c->db,c->argv[1]);
     notifyKeyspaceEvent(NOTIFY_STRING,"append",c->argv[1],c->db->id);

@@ -41,13 +41,19 @@
  * There is no need for the caller to increment the refcount of 'value' as
  * the function takes care of it if needed. */
 void listTypePush(robj *subject, robj *value, int where) {
+    // QUICKLIST才能操作
     if (subject->encoding == OBJ_ENCODING_QUICKLIST) {
         int pos = (where == LIST_HEAD) ? QUICKLIST_HEAD : QUICKLIST_TAIL;
+        // int编码（long数字）插入，其实就是解析成32b的buf字符数组
         if (value->encoding == OBJ_ENCODING_INT) {
+            // 解析成字符数组：最大32b
             char buf[32];
             ll2string(buf, 32, (long)value->ptr);
+            // 插入 
             quicklistPush(subject->ptr, buf, strlen(buf), pos);
         } else {
+            // 插入
+            // 其实从这里可看到list只支持，string类型
             quicklistPush(subject->ptr, value->ptr, sdslen(value->ptr), pos);
         }
     } else {
@@ -87,6 +93,7 @@ unsigned long listTypeLength(const robj *subject) {
 /* Initialize an iterator at the specified index. */
 listTypeIterator *listTypeInitIterator(robj *subject, long index,
                                        unsigned char direction) {
+    // 分配空间
     listTypeIterator *li = zmalloc(sizeof(listTypeIterator));
     li->subject = subject;
     li->encoding = subject->encoding;
@@ -234,24 +241,36 @@ void pushGenericCommand(client *c, int where, int xx) {
     }
 
     robj *lobj = lookupKeyWrite(c->db, c->argv[1]);
-    if (checkType(c,lobj,OBJ_LIST)) return;
+    if (checkType(c,lobj,OBJ_LIST)) return; // 不是list类型，返回
+
+    // 未存该key，新增
     if (!lobj) {
+        // 未存在，直接终止
         if (xx) {
             addReply(c, shared.czero);
             return;
         }
 
+        // 创建key的Quicklist
         lobj = createQuicklistObject();
+        // 使用服务器配置Quicklist
+        //    默认服务器配置就是原始默认配置
+        //    list_max_ziplist_size = fill （默认-2）
+        //    list_compress_depth=compress (默认0)
         quicklistSetOptions(lobj->ptr, server.list_max_ziplist_size,
                             server.list_compress_depth);
+
+        // 新增key到db
         dbAdd(c->db,c->argv[1],lobj);
     }
 
+    // 开始往key的list，插入，一个个插入
     for (j = 2; j < c->argc; j++) {
         listTypePush(lobj,c->argv[j],where);
         server.dirty++;
     }
 
+    // 响应long，即目前长度
     addReplyLongLong(c, listTypeLength(lobj));
 
     char *event = (where == LIST_HEAD) ? "lpush" : "rpush";
@@ -261,6 +280,7 @@ void pushGenericCommand(client *c, int where, int xx) {
 
 /* LPUSH <key> <element> [<element> ...] */
 void lpushCommand(client *c) {
+    // xx=0: 不存在key创建
     pushGenericCommand(c,LIST_HEAD,0);
 }
 
@@ -347,10 +367,13 @@ void lindexCommand(client *c) {
 
     if (o->encoding == OBJ_ENCODING_QUICKLIST) {
         quicklistEntry entry;
+        // 查找index的entry，并获取里面的内容
         if (quicklistIndex(o->ptr, index, &entry)) {
+            // value存str
             if (entry.value) {
                 addReplyBulkCBuffer(c, entry.value, entry.sz);
             } else {
+                // longval存数字int
                 addReplyBulkLongLong(c, entry.longval);
             }
         } else {
@@ -399,39 +422,52 @@ void lsetCommand(client *c) {
  * argument is set to a non-zero value, the reply is reversed so that elements
  * are returned from end to start. */
 void addListRangeReply(client *c, robj *o, long start, long end, int reverse) {
+    // list元素个数
     long rangelen, llen = listTypeLength(o);
 
     /* Convert negative indexes. */
+    // 反向下标转成正向
     if (start < 0) start = llen+start;
     if (end < 0) end = llen+end;
     if (start < 0) start = 0;
 
     /* Invariant: start >= 0, so this test will be true when end < 0.
      * The range is empty when start > end or start >= length. */
+    // 下标范围不正确，直接返回空list
     if (start > end || start >= llen) {
         addReply(c,shared.emptyarray);
         return;
     }
+
+    // 计算需要遍历多少个 -》rangelen
     if (end >= llen) end = llen-1;
     rangelen = (end-start)+1;
 
     /* Return the result in form of a multi-bulk reply */
+    // 响应先返回rangelen, 这次会返回多少个
     addReplyArrayLen(c,rangelen);
     if (o->encoding == OBJ_ENCODING_QUICKLIST) {
         int from = reverse ? end : start;
         int direction = reverse ? LIST_HEAD : LIST_TAIL;
+        // 迭代器 -》不是一个一个下标去查，继续上次的位置时间复杂度
+        // 1个个查下标则需要o(n2)
         listTypeIterator *iter = listTypeInitIterator(o,from,direction);
-
+        // 遍历实际可返回数量
         while(rangelen--) {
             listTypeEntry entry;
             listTypeNext(iter, &entry);
             quicklistEntry *qe = &entry.entry;
+
+            // 又是string跟数字的响应处理
+            // 一个个响应
             if (qe->value) {
                 addReplyBulkCBuffer(c,qe->value,qe->sz);
             } else {
                 addReplyBulkLongLong(c,qe->longval);
             }
+            // 有个问题：这样子只能client那边根据最早响应的长度来判断命令是否结束
         }
+        // 释放迭代器空间
         listTypeReleaseIterator(iter);
     } else {
         serverPanic("Unknown list encoding");
@@ -486,9 +522,12 @@ void popGenericCommand(client *c, int where) {
         value = listTypePop(o,where);
         serverAssert(value != NULL);
         addReplyBulk(c,value);
+        // 
         decrRefCount(value);
         listElementsRemoved(c,c->argv[1],where,o,1);
     } else {
+        // 有count，需要考虑出多少个
+
         /* Pop a range of elements. An addition to the original POP command,
          *  which replies with a multi-bulk. */
         long llen = listTypeLength(o);
@@ -498,6 +537,7 @@ void popGenericCommand(client *c, int where) {
         int reverse = (where == LIST_HEAD) ? 0 : 1;
 
         addListRangeReply(c,o,rangestart,rangeend,reverse);
+        // 范围删除
         quicklistDelRange(o->ptr,rangestart,rangelen);
         listElementsRemoved(c,c->argv[1],where,o,rangelen);
     }
@@ -518,12 +558,16 @@ void lrangeCommand(client *c) {
     robj *o;
     long start, end;
 
+    // 获取start、end
     if ((getLongFromObjectOrReply(c, c->argv[2], &start, NULL) != C_OK) ||
         (getLongFromObjectOrReply(c, c->argv[3], &end, NULL) != C_OK)) return;
 
+    // key不存在过滤，非list类型过滤    
+    // 这里使用了shared.emptyarray复用的对象作为空时响应文本
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.emptyarray)) == NULL
          || checkType(c,o,OBJ_LIST)) return;
 
+    // key 存在list     
     addListRangeReply(c,o,start,end,0);
 }
 
