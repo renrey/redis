@@ -372,7 +372,7 @@ static inline unsigned int zipIntSize(unsigned char encoding) {
  * The function returns the number of bytes used by the encoding/length
  * header stored in 'p'. */
 unsigned int zipStoreEntryEncoding(unsigned char *p, unsigned char encoding, unsigned int rawlen) {
-   // 5b的buf char数组
+    // 5b的buf char数组
     unsigned char len = 1, buf[5];
     // 当前内容的编码项
 
@@ -447,7 +447,7 @@ unsigned int zipStoreEntryEncoding(unsigned char *p, unsigned char encoding, uns
                            /* match the lensize after this macro with 0.    */ \
         }                                                                      \
     } else {                                                                   \
-        (lensize) = 1 /***/                                                     \
+        (lensize) = 1;                                                          \
         if ((encoding) == ZIP_INT_8B)  (len) = 1;                              \
         else if ((encoding) == ZIP_INT_16B) (len) = 2;                         \
         else if ((encoding) == ZIP_INT_24B) (len) = 3;                         \
