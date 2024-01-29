@@ -1,0 +1,504 @@
+{
+	"files": [
+		{
+			"path": "src/server.h",
+			"bookmarks": [
+				{
+					"line": 1026,
+					"column": 0,
+					"label": "watchdog"
+				},
+				{
+					"line": 1028,
+					"column": 0,
+					"label": "ram"
+				},
+				{
+					"line": 2516,
+					"column": 0,
+					"label": "一堆redis命令函数定义"
+				}
+			]
+		},
+		{
+			"path": "src/server.c",
+			"bookmarks": [
+				{
+					"line": 194,
+					"column": 0,
+					"label": "默认命令列表"
+				},
+				{
+					"line": 1302,
+					"column": 0,
+					"label": "默认dict的hash函数"
+				},
+				{
+					"line": 2498,
+					"column": 0,
+					"label": "创建共享对象-- 减少可知值的对象创建"
+				},
+				{
+					"line": 3084,
+					"column": 0,
+					"label": "监听端口逻辑-start"
+				},
+				{
+					"line": 3238,
+					"column": 0,
+					"label": "创建使用的eventloop对象"
+				},
+				{
+					"line": 3250,
+					"column": 0,
+					"label": "socket绑定-监听服务端口"
+				},
+				{
+					"line": 3284,
+					"column": 0,
+					"label": "真正创建db对象"
+				},
+				{
+					"line": 3353,
+					"column": 0,
+					"label": "创建后台定时任务"
+				},
+				{
+					"line": 3360,
+					"column": 0,
+					"label": "socket-注册AcceptHandler"
+				},
+				{
+					"line": 3407,
+					"column": 0,
+					"label": "cluster初始化"
+				},
+				{
+					"line": 3411,
+					"column": 0,
+					"label": "服务器启动-慢日志"
+				},
+				{
+					"line": 3412,
+					"column": 0,
+					"label": "延迟监控"
+				},
+				{
+					"line": 3426,
+					"column": 0,
+					"label": "初始化io-多线程io"
+				},
+				{
+					"line": 3501,
+					"column": 0,
+					"label": "初始化-注入redis命令"
+				},
+				{
+					"line": 4041,
+					"column": 0,
+					"label": "执行客户端命令-入口"
+				},
+				{
+					"line": 4139,
+					"column": 0,
+					"label": "cluster转发命令"
+				},
+				{
+					"line": 6271,
+					"column": 0,
+					"label": "服务器启动-主入口"
+				},
+				{
+					"line": 6358,
+					"column": 0,
+					"label": "服务器启动-哨兵初始化"
+				},
+				{
+					"line": 6449,
+					"column": 0,
+					"label": "服务器启动-初始化服务器！！！"
+				},
+				{
+					"line": 6527,
+					"column": 0,
+					"label": "服务执行-循环eventloop"
+				}
+			]
+		},
+		{
+			"path": "src/networking.c",
+			"bookmarks": [
+				{
+					"line": 1066,
+					"column": 0,
+					"label": "clientAcceptHandler- accept处理客户端建立连接"
+				},
+				{
+					"line": 1128,
+					"column": 0,
+					"label": "tcp建立-分配好fd、conn对象后的执行acceptCommonHandler"
+				},
+				{
+					"line": 1193,
+					"column": 0,
+					"label": "accept连接真正"
+				},
+				{
+					"line": 1206,
+					"column": 0,
+					"label": "tcp建立-处理新的连接建立请求"
+				},
+				{
+					"line": 1594,
+					"column": 0,
+					"label": "writeToClient"
+				},
+				{
+					"line": 1691,
+					"column": 0,
+					"label": "io事件可写（可发送）的handler-sendReplyToClient"
+				},
+				{
+					"line": 2110,
+					"column": 0,
+					"label": "主节点同步到从节点"
+				},
+				{
+					"line": 2235,
+					"column": 0,
+					"label": "执行客户端请求的命令"
+				},
+				{
+					"line": 2252,
+					"column": 0,
+					"label": "接收请求-执行read事件"
+				},
+				{
+					"line": 3520,
+					"column": 0,
+					"label": "多路复用调用-aeProcessEvents"
+				},
+				{
+					"line": 3564,
+					"column": 0,
+					"label": "io线程主函数"
+				},
+				{
+					"line": 3721,
+					"column": 0,
+					"label": "多线程写i-分配待写到io线程队列"
+				},
+				{
+					"line": 3791,
+					"column": 0,
+					"label": "多线程io读"
+				},
+				{
+					"line": 3820,
+					"column": 0,
+					"label": "多线程读-把多线程待读队列分配到多线程的队列中"
+				}
+			]
+		},
+		{
+			"path": "src/ae_epoll.c",
+			"bookmarks": [
+				{
+					"line": 114,
+					"column": 0,
+					"label": "aeApiPoll-epoll入口"
+				}
+			]
+		},
+		{
+			"path": "src/ae.c",
+			"bookmarks": [
+				{
+					"line": 163,
+					"column": 0,
+					"label": "新增事件-入口"
+				},
+				{
+					"line": 406,
+					"column": 0,
+					"label": "主el-调用多路复用（epoll）"
+				},
+				{
+					"line": 497,
+					"column": 0,
+					"label": "监听新连接-启动入口"
+				}
+			]
+		},
+		{
+			"path": "src/anet.c",
+			"bookmarks": [
+				{
+					"line": 428,
+					"column": 0,
+					"label": "绑定端口"
+				}
+			]
+		},
+		{
+			"path": "src/dict.h",
+			"bookmarks": [
+				{
+					"line": 49,
+					"column": 0,
+					"label": "dictEntry-dict节点结构"
+				},
+				{
+					"line": 77,
+					"column": 0,
+					"label": "ht-dict中真正的哈希表结构"
+				},
+				{
+					"line": 79,
+					"column": 0,
+					"label": "dict-基础对外结构"
+				}
+			]
+		},
+		{
+			"path": "src/t_string.c",
+			"bookmarks": [
+				{
+					"line": 264,
+					"column": 0,
+					"label": "set命令"
+				},
+				{
+					"line": 308,
+					"column": 0,
+					"label": "get命令"
+				},
+				{
+					"line": 422,
+					"column": 0,
+					"label": "getset命令"
+				},
+				{
+					"line": 590,
+					"column": 0,
+					"label": "自增自减命令"
+				},
+				{
+					"line": 689,
+					"column": 0,
+					"label": "string append命令"
+				}
+			]
+		},
+		{
+			"path": "src/db.c",
+			"bookmarks": [
+				{
+					"line": 64,
+					"column": 0,
+					"label": "真正do查找key的val"
+				},
+				{
+					"line": 108,
+					"column": 0,
+					"label": "验证过期、获取key"
+				},
+				{
+					"line": 182,
+					"column": 0,
+					"label": "查找key"
+				},
+				{
+					"line": 203,
+					"column": 0,
+					"label": "cluster的addkey"
+				},
+				{
+					"line": 336,
+					"column": 0,
+					"label": "触发cluster过期删除key"
+				},
+				{
+					"line": 766,
+					"column": 0,
+					"label": "key命令"
+				},
+				{
+					"line": 1061,
+					"column": 0,
+					"label": "scan命令"
+				},
+				{
+					"line": 1526,
+					"column": 0,
+					"label": "判断key过期"
+				}
+			]
+		},
+		{
+			"path": "src/dict.c",
+			"bookmarks": [
+				{
+					"line": 148,
+					"column": 0,
+					"label": "_dictExpand- 创建扩容数组"
+				},
+				{
+					"line": 1022,
+					"column": 0,
+					"label": "触发扩容"
+				},
+				{
+					"line": 1062,
+					"column": 0,
+					"label": "扩容大小"
+				}
+			]
+		},
+		{
+			"path": "src/object.c",
+			"bookmarks": [
+				{
+					"line": 80,
+					"column": 0,
+					"label": "raw编码"
+				},
+				{
+					"line": 90,
+					"column": 0,
+					"label": "embstr编码"
+				},
+				{
+					"line": 456,
+					"column": 0,
+					"label": "对val编码"
+				}
+			]
+		},
+		{
+			"path": "src/sds.c",
+			"bookmarks": [
+				{
+					"line": 60,
+					"column": 0,
+					"label": "判断sds类型"
+				}
+			]
+		},
+		{
+			"path": "src/util.c",
+			"bookmarks": [
+				{
+					"line": 405,
+					"column": 0,
+					"label": "string类型转数字"
+				}
+			]
+		},
+		{
+			"path": "src/t_hash.c",
+			"bookmarks": [
+				{
+					"line": 663,
+					"column": 0,
+					"label": "hset命令"
+				}
+			]
+		},
+		{
+			"path": "src/ziplist.c",
+			"bookmarks": [
+				{
+					"line": 317,
+					"column": 0,
+					"label": "解析encoding"
+				},
+				{
+					"line": 380,
+					"column": 0,
+					"label": "entry string编码"
+				},
+				{
+					"line": 430,
+					"column": 0,
+					"label": "根据encoding解析转换内容"
+				},
+				{
+					"line": 763,
+					"column": 0,
+					"label": "ziplist创建"
+				},
+				{
+					"line": 989,
+					"column": 0,
+					"label": "ziplist insert插入"
+				},
+				{
+					"line": 1392,
+					"column": 0,
+					"label": "ziplistGet-获取当前entry得内容"
+				}
+			]
+		},
+		{
+			"path": "src/evict.c",
+			"bookmarks": [
+				{
+					"line": 330,
+					"column": 0,
+					"label": "释放无用内存"
+				}
+			]
+		},
+		{
+			"path": "deps/hiredis/dict.c",
+			"bookmarks": [
+				{
+					"line": 141,
+					"column": 0,
+					"label": "新增key"
+				},
+				{
+					"line": 197,
+					"column": 0,
+					"label": "删除key"
+				}
+			]
+		},
+		{
+			"path": "src/t_list.c",
+			"bookmarks": [
+				{
+					"line": 47,
+					"column": 0,
+					"label": "list-解析int成字符数组后插入"
+				},
+				{
+					"line": 233,
+					"column": 0,
+					"label": "list命令-push实现"
+				},
+				{
+					"line": 283,
+					"column": 0,
+					"label": "lpush"
+				},
+				{
+					"line": 360,
+					"column": 0,
+					"label": "lindex-获取下标的元素"
+				},
+				{
+					"line": 547,
+					"column": 0,
+					"label": "lpop"
+				},
+				{
+					"line": 557,
+					"column": 0,
+					"label": "lrange"
+				}
+			]
+		}
+	]
+}

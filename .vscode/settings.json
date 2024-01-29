@@ -1,0 +1,27 @@
+{
+      "files.associations": {
+            "*.def": "c",
+            "slowlog.h": "c",
+            "cluster.h": "c",
+            "atomicvar.h": "c",
+            "math.h": "c",
+            "limits.h": "c",
+            "socket.h": "c",
+            "syscheck.h": "c",
+            "bio.h": "c",
+            "latency.h": "c",
+            "__availability": "c",
+            "string": "c",
+            "bitset": "c",
+            "ios": "c",
+            "types.h": "c",
+            "event.h": "c"
+      },
+      "files.exclude": {
+            "**/*.d": true,
+            "**/*.o": true
+      },
+      "C_Cpp.intelliSenseEngine": "disabled",
+      "C_Cpp.default.intelliSenseMode": "macos-clang-x64",
+      "cmake.sourceDirectory": "/Users/rey/Documents/code/redis/deps/hiredis/examples"
+}
