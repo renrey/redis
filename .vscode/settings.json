@@ -19,9 +19,24 @@
       },
       "files.exclude": {
             "**/*.d": true,
-            "**/*.o": true
+            "**/*.o": true,            
+            "**/.*": true,
+
+            ".git*": true,
+            ".cache*": true,
+            
+            "00*": true,
+            "build*": true,
+
+            "compile*": true,
+            "BUGS": true,
+            "CO*": true,
+            "INST*": true,
+            "MAN*": true,
+            "test*": true, 
+
+            "run*":true
       },
       "C_Cpp.intelliSenseEngine": "disabled",
-      "C_Cpp.default.intelliSenseMode": "macos-clang-x64",
-      "cmake.sourceDirectory": "/Users/rey/Documents/code/redis/deps/hiredis/examples"
+      "C_Cpp.default.intelliSenseMode": "macos-clang-x64"
 }
