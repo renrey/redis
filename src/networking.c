@@ -324,6 +324,7 @@ int _addReplyToBuffer(client *c, const char *s, size_t len) {
 void _addReplyProtoToList(client *c, const char *s, size_t len) {
     if (c->flags & CLIENT_CLOSE_AFTER_REPLY) return;
 
+    // 拿到reply链表的尾
     listNode *ln = listLast(c->reply);
     clientReplyBlock *tail = ln? listNodeValue(ln): NULL;
 
@@ -331,27 +332,48 @@ void _addReplyProtoToList(client *c, const char *s, size_t len) {
      * addReplyDeferredLen() is used, it sets a dummy node to NULL just
      * fo fill it later, when the size of the bulk length is set. */
 
+    // 加入到链表-》尾插 
     /* Append to tail string when possible. */
     if (tail) {
+        // 这里是看能否直接分配在tail空间（buf申请下限是16k，一般都很多空闲）
         /* Copy the part we can fit into the tail, and leave the rest for a
          * new node */
+        // 其实就通过2个block头数据（size-used）计算空闲空间
         size_t avail = tail->size - tail->used;
         size_t copy = avail >= len? len: avail;
-        memcpy(tail->buf + tail->used, s, copy);
+        memcpy(tail->buf + tail->used, s, copy);//复制到tail的buf空间
+        // used累加
         tail->used += copy;
         s += copy;
         len -= copy;
+
+        // 注意直接分配在tail上不会申请block链表上
+        // 所以block就是一段用于存reply的预留空间，减少重新申请
+        // 而通过注释，这样reply属于链表，block属于复用内存池
     }
+    // 下面是需要申请空间的
+    // 1.初始 2. 不能分配tail空间，需要新空间
     if (len) {
         /* Create a new node, make sure it is allocated to at
          * least PROTO_REPLY_CHUNK_BYTES */
+        /**
+        长度<16k，size16k,大于则使用内容长度的
+        即 1个block的buf数组长度下限16k
+        */
         size_t size = len < PROTO_REPLY_CHUNK_BYTES? PROTO_REPLY_CHUNK_BYTES: len;
+        // 申请连续空间（buf与clientReplyBlock一起）/：
+        //   buf长度 +clientReplyBlock固定长度(size, used)-》16k（下限）+16b
         tail = zmalloc(size + sizeof(clientReplyBlock));
-        /* take over the allocation's internal fragmentation */
+        
+        /* take over the allocation's internal fragmentsizeation */
+        // size = 总长度-16b(size, used)，即buf的长度，用于复用整个block空间
         tail->size = zmalloc_usable_size(tail) - sizeof(clientReplyBlock);
-        tail->used = len;
-        memcpy(tail->buf, s, len);
+        tail->used = len;// used就是实际内容的长度，用于获取具体s
+        memcpy(tail->buf, s, len);// 拷贝字符数组s到buf数组
         listAddNodeTail(c->reply, tail);
+
+        // client的reply_bytes +size
+        // 即代表clientReplyBlock链表占用的总空间
         c->reply_bytes += tail->size;
 
         closeClientOnOutputBufferLimitReached(c, 1);
@@ -412,7 +434,13 @@ void addReplySds(client *c, sds s) {
  * _addReplyProtoToList() if we fail to extend the existing tail object
  * in the list of objects. */
 void addReplyProto(client *c, const char *s, size_t len) {
+    // 验证可以写操作
     if (prepareClientToWrite(c) != C_OK) return;
+    /**
+    写：
+    1._addReplyToBuffer： 把字符数组加入到client的write buffer
+    2. _addReplyProtoToList：加入到响应list中？ 
+    */
     if (_addReplyToBuffer(c,s,len) != C_OK)
         _addReplyProtoToList(c,s,len);
 }
@@ -717,23 +745,49 @@ void setDeferredPushLen(client *c, void *node, long length) {
 }
 
 /* Add a double as a bulk reply */
+// 新增double类型到响应
 void addReplyDouble(client *c, double d) {
+    // d 是不支持的无限值（表示不了的值）
+    // isinf看着就是当前本地是否支持的大小
     if (isinf(d)) {
         /* Libc in odd systems (Hi Solaris!) will format infinite in a
          * different way, so better to handle it in an explicit way. */
+         // 正常就是2
         if (c->resp == 2) {
+            // 返回字符inf（正数）、-inf（负数）
             addReplyBulkCString(c, d > 0 ? "inf" : "-inf");
         } else {
             addReplyProto(c, d > 0 ? ",inf\r\n" : ",-inf\r\n",
                               d > 0 ? 6 : 7);
         }
     } else {
+        // 这里就是正常值的情况
+
+
+        /**
+        申请2个字符数组：
+        1.dbuf : 5k+3b，表示数字d的字符数组
+        2. sbuf：5k+32b，最终发送各式的字符数组
+        格式：多了29b，其实就是申请的上限没啥意义
+        */
+        // MAX_LONG_DOUBLE_CHARS：5*1024 -》5k，
+        //   用于表示long double最大长度
         char dbuf[MAX_LONG_DOUBLE_CHARS+3],
              sbuf[MAX_LONG_DOUBLE_CHARS+32];
         int dlen, slen;
+
+        /// 正常
         if (c->resp == 2) {
+            /**
+             dobule字符数组生成：%.17g-》最多小数点后17位，最大5k+3b
+            */
             dlen = snprintf(dbuf,sizeof(dbuf),"%.17g",d);
+            /**
+            消息格式：$长度\r\n字符\r\n
+            */
             slen = snprintf(sbuf,sizeof(sbuf),"$%d\r\n%s\r\n",dlen,dbuf);
+            
+            // 发送就是sbuf  
             addReplyProto(c,sbuf,slen);
         } else {
             dlen = snprintf(dbuf,sizeof(dbuf),",%.17g\r\n",d);

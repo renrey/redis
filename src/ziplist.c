@@ -986,6 +986,7 @@ unsigned char *__ziplistDelete(unsigned char *zl, unsigned char *p, unsigned int
 }
 
 /* Insert item at "p". */
+// 返回值是最新ziplist的头地址，可能扩容的空间不足，直接申请新的空间
 unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned char *s, unsigned int slen) {
     // p：插入开始下标
     // curlen：当前占用大小
@@ -1000,7 +1001,7 @@ unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned cha
     zlentry tail;
 
     /* Find out prevlen for the entry that is inserted. */
-    // p不是终止，即从头开始插入
+    // p不是终止，即p的前面开始插入
     if (p[0] != ZIP_END) {
         // 当前是头部
         // 只关注prevlen即可!!!
@@ -1009,7 +1010,7 @@ unsigned char *__ziplistInsert(unsigned char *zl, unsigned char *p, unsigned cha
         //  prevlen 则是上一项长度数值 
         ZIP_DECODE_PREVLEN(p, prevlensize, prevlen);
     } else {
-        // 从尾开始插入
+        // 从尾部开始插入-》尾插
 
         // 拿到entry数组的最后一个的指针
         unsigned char *ptail = ZIPLIST_ENTRY_TAIL(zl);

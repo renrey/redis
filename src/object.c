@@ -273,20 +273,24 @@ robj *createHashObject(void) {
 }
 
 robj *createZsetObject(void) {
+    // 先申请zset空间
     zset *zs = zmalloc(sizeof(*zs));
     robj *o;
-
+    // dict创建-》ht
     zs->dict = dictCreate(&zsetDictType,NULL);
+    // skiplist创建！！！
     zs->zsl = zslCreate();
     o = createObject(OBJ_ZSET,zs);
-    o->encoding = OBJ_ENCODING_SKIPLIST;
+    o->encoding = OBJ_ENCODING_SKIPLIST;// 默认就是skiplist
     return o;
 }
 
 robj *createZsetZiplistObject(void) {
+    // 创建ziplist
     unsigned char *zl = ziplistNew();
+    // 创建一个raw类型robj，ptr指针执行ziplist
     robj *o = createObject(OBJ_ZSET,zl);
-    o->encoding = OBJ_ENCODING_ZIPLIST;
+    o->encoding = OBJ_ENCODING_ZIPLIST;// 更新编码
     return o;
 }
 

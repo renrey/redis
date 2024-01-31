@@ -897,7 +897,7 @@ typedef struct client {
     int multibulklen;       /* Number of multi bulk arguments left to read. */
     long bulklen;           /* Length of bulk argument in multi bulk request. */
     list *reply;            /* List of reply objects to send to the client. */
-    unsigned long long reply_bytes; /* Tot bytes of objects in reply list. */
+    unsigned long long reply_bytes; /* Tot bytes of objects in reply list. clientReplyBlock链表占用的空间*/
     list *deferred_reply_errors;    /* Used for module thread safe contexts. */
     size_t sentlen;         /* Amount of bytes already sent in the current
                                buffer or object being sent. */
@@ -1016,24 +1016,27 @@ struct sharedObjectsStruct {
 
 /* ZSETs use a specialized version of Skiplists */
 typedef struct zskiplistNode {
-    sds ele;
-    double score;
-    struct zskiplistNode *backward;
+    sds ele;//保存内容-》用sds字符保存
+    double score;// 分数
+    struct zskiplistNode *backward;//前1个节点，其实是在level0最底层的prev
+
+    // 这个数组就是不同level链表的next指针
     struct zskiplistLevel {
-        struct zskiplistNode *forward;
+        struct zskiplistNode *forward;//节点在当前level的前一个节点
         unsigned long span;
-    } level[];
+    } level[]; // 当前节点所在等级的数组，因为可能在多个等级上
 } zskiplistNode;
 
 typedef struct zskiplist {
-    struct zskiplistNode *header, *tail;
-    unsigned long length;
-    int level;
+    // 单向链表
+    struct zskiplistNode *header, *tail; // 头尾指针
+    unsigned long length; // 链表长度
+    int level;//等级
 } zskiplist;
 
 typedef struct zset {
-    dict *dict;
-    zskiplist *zsl;
+    dict *dict; // 字典，ht
+    zskiplist *zsl;// skiplist
 } zset;
 
 typedef struct clientBufferLimitsConfig {
@@ -2554,6 +2557,7 @@ void moveCommand(client *c);
 void copyCommand(client *c);
 void renameCommand(client *c);
 void renamenxCommand(client *c);
+// list
 void lpushCommand(client *c);
 void rpushCommand(client *c);
 void lpushxCommand(client *c);
@@ -2566,6 +2570,7 @@ void lindexCommand(client *c);
 void lrangeCommand(client *c);
 void ltrimCommand(client *c);
 void typeCommand(client *c);
+// set类型命令
 void lsetCommand(client *c);
 void saddCommand(client *c);
 void sremCommand(client *c);
@@ -2607,6 +2612,7 @@ void roleCommand(client *c);
 void debugCommand(client *c);
 void msetCommand(client *c);
 void msetnxCommand(client *c);
+// zset
 void zaddCommand(client *c);
 void zincrbyCommand(client *c);
 void zrangeCommand(client *c);
@@ -2619,7 +2625,7 @@ void zlexcountCommand(client *c);
 void zrevrangeCommand(client *c);
 void zcardCommand(client *c);
 void zremCommand(client *c);
-void zscoreCommand(client *c);
+void zscoreCommand(client *c); // 
 void zmscoreCommand(client *c);
 void zremrangebyscoreCommand(client *c);
 void zremrangebylexCommand(client *c);

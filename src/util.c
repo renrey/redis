@@ -335,6 +335,7 @@ uint32_t sdigits10(int64_t v) {
  *
  * Modified in order to handle signed integers since the original code was
  * designed for unsigned integers. */
+ // 把longlong转成string，返回用来表示这个数字的字节数
 int ll2string(char *dst, size_t dstlen, long long svalue) {
     static const char digits[201] =
         "0001020304050607080910111213141516171819"
@@ -361,6 +362,8 @@ int ll2string(char *dst, size_t dstlen, long long svalue) {
     }
 
     /* Check length. */
+    // digits10: 就是十进制下的长度
+    // 可能多1位负号 
     uint32_t const length = digits10(value)+negative;
     if (length >= dstlen) return 0;
 
@@ -369,11 +372,14 @@ int ll2string(char *dst, size_t dstlen, long long svalue) {
     dst[next] = '\0';
     next--;
     while (value >= 100) {
-        int const i = (value % 100) * 2;
-        value /= 100;
+        // 每次放入2位，所以除100
+        int const i = (value % 100) * 2;// 因为digit存的实际是双位，所以每个具体数都有2个元素来表示
+        value /= 100;//去掉后2位
         dst[next] = digits[i + 1];
         dst[next - 1] = digits[i];
         next -= 2;
+        // 从尾向前生成
+        // 所以是大端（数组低位存数字高位）
     }
 
     /* Handle last 1-2 digits. */
@@ -588,10 +594,11 @@ int d2string(char *buf, size_t len, double value) {
         double min = -4503599627370495; /* (2^52)-1 */
         double max = 4503599627370496; /* -(2^52) */
         if (value > min && value < max && value == ((double)((long long)value)))
+            // 数字转成字符数组
             len = ll2string(buf,len,(long long)value);
         else
 #endif
-            len = snprintf(buf,len,"%.17g",value);
+            len = snprintf(buf,len,"%.17g",value);// 最多小数点后17位
     }
 
     return len;

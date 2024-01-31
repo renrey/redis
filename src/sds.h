@@ -50,7 +50,8 @@ struct __attribute__ ((__packed__)) sdshdr5 {
 };
 struct __attribute__ ((__packed__)) sdshdr8 {
     uint8_t len; /* used */
-    uint8_t alloc; /* excluding the header and null terminator */ // 不包含header跟最后的所使用大小
+    uint8_t alloc; /* excluding the header and null terminator */ 
+    // 不包含header跟最后（终止标记）的所使用大小，即buf里去除
     unsigned char flags; /* 3 lsb of type, 5 unused bits */
     char buf[];
 };

@@ -129,72 +129,82 @@
 			"path": "src/networking.c",
 			"bookmarks": [
 				{
-					"line": 1066,
+					"line": 120,
+					"column": 0,
+					"label": "createClient-创建Client实例的函数"
+				},
+				{
+					"line": 748,
+					"column": 0,
+					"label": "addReplyDouble-响应double数字的处理"
+				},
+				{
+					"line": 1120,
 					"column": 0,
 					"label": "clientAcceptHandler- accept处理客户端建立连接"
 				},
 				{
-					"line": 1128,
+					"line": 1182,
 					"column": 0,
 					"label": "tcp建立-分配好fd、conn对象后的执行acceptCommonHandler"
 				},
 				{
-					"line": 1193,
+					"line": 1247,
 					"column": 0,
 					"label": "accept连接真正"
 				},
 				{
-					"line": 1206,
+					"line": 1260,
 					"column": 0,
 					"label": "tcp建立-处理新的连接建立请求"
 				},
 				{
-					"line": 1594,
+					"line": 1648,
 					"column": 0,
 					"label": "writeToClient"
 				},
 				{
-					"line": 1691,
+					"line": 1745,
 					"column": 0,
 					"label": "io事件可写（可发送）的handler-sendReplyToClient"
 				},
 				{
-					"line": 2110,
+					"line": 2164,
 					"column": 0,
 					"label": "主节点同步到从节点"
 				},
 				{
-					"line": 2235,
+					"line": 2289,
 					"column": 0,
 					"label": "执行客户端请求的命令"
 				},
 				{
-					"line": 2252,
+					"line": 2306,
 					"column": 0,
 					"label": "接收请求-执行read事件"
 				},
 				{
-					"line": 3520,
+					"line": 3574,
 					"column": 0,
 					"label": "多路复用调用-aeProcessEvents"
 				},
 				{
-					"line": 3564,
+					"line": 3618,
 					"column": 0,
 					"label": "io线程主函数"
 				},
 				{
-					"line": 3721,
+					"line": 3775,
 					"column": 0,
 					"label": "多线程写i-分配待写到io线程队列"
 				},
 				{
-					"line": 3791,
+					"line": 3845,
 					"column": 0,
 					"label": "多线程io读"
 				},
 				{
-					"line": 3820,
+					"line": 3874,
 					"column": 0,
 					"label": "多线程读-把多线程待读队列分配到多线程的队列中"
 				}
@@ -369,7 +379,7 @@
 					"label": "embstr编码"
 				},
 				{
-					"line": 456,
+					"line": 460,
 					"column": 0,
 					"label": "对val编码"
 				}
@@ -389,7 +399,7 @@
 			"path": "src/util.c",
 			"bookmarks": [
 				{
-					"line": 405,
+					"line": 411,
 					"column": 0,
 					"label": "string类型转数字"
 				}
@@ -429,12 +439,12 @@
 					"label": "ziplist创建"
 				},
 				{
-					"line": 989,
+					"line": 990,
 					"column": 0,
 					"label": "ziplist insert插入"
 				},
 				{
-					"line": 1392,
+					"line": 1393,
 					"column": 0,
 					"label": "ziplistGet-获取当前entry得内容"
 				}
@@ -497,6 +507,91 @@
 					"line": 557,
 					"column": 0,
 					"label": "lrange"
+				}
+			]
+		},
+		{
+			"path": "src/t_zset.c",
+			"bookmarks": [
+				{
+					"line": 80,
+					"column": 0,
+					"label": "skiplist-初始创建跳表"
+				},
+				{
+					"line": 546,
+					"column": 0,
+					"label": "关键--skiplist计算元素排名"
+				},
+				{
+					"line": 1461,
+					"column": 0,
+					"label": "ziplist-加入元素"
+				},
+				{
+					"line": 1491,
+					"column": 0,
+					"label": "ziplist-更新分数操作"
+				},
+				{
+					"line": 1523,
+					"column": 0,
+					"label": "skiplist-插入元素"
+				},
+				{
+					"line": 1559,
+					"column": 0,
+					"label": "skiplist-更新分数"
+				},
+				{
+					"line": 1572,
+					"column": 0,
+					"label": "skiplist-新增"
+				},
+				{
+					"line": 1662,
+					"column": 0,
+					"label": "ziplist-元素rank排名"
+				},
+				{
+					"line": 1694,
+					"column": 0,
+					"label": "skiplist-元素rank排名"
+				},
+				{
+					"line": 1965,
+					"column": 0,
+					"label": "关键--选择set的编码"
+				},
+				{
+					"line": 2014,
+					"column": 0,
+					"label": "命令-zadd"
+				},
+				{
+					"line": 3318,
+					"column": 0,
+					"label": "命令-ZRANGE-获取指定下标的元素"
+				},
+				{
+					"line": 3465,
+					"column": 0,
+					"label": "命令-ZCOUNT-统计区间数量"
+				},
+				{
+					"line": 3922,
+					"column": 0,
+					"label": "命令-ZCARD-获取set数量"
+				},
+				{
+					"line": 3932,
+					"column": 0,
+					"label": "命令-zscore- 获取单个分数"
+				},
+				{
+					"line": 3991,
+					"column": 0,
+					"label": "命令-zrank-获取排名"
 				}
 			]
 		}
