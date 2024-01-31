@@ -145,8 +145,8 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     // 从level开始遍历-》 从顶层开始遍历，初始是底层
     for (i = zsl->level-1; i >= 0; i--) {
         /* store rank that is crossed to reach the insert position */
-        // 是顶层rank=0，不然rank=上层rank（or叫做后一个）
-        // 例子，level = 2，当到0，即rank=1
+        // 顶层，代表刚进入整个扫描：所以rank=0
+        // 非顶层,复用上一层得到rank（使用已扫描过的得出rank）
         rank[i] = i == (zsl->level-1) ? 0 : rank[i+1];
 
         // 就是扫描链表，找到可以当前入参可以插入后面的节点（x< input <x.next -》）
@@ -160,8 +160,9 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
              // 循环条件总结：x 在当前level链表且有next节点，入参的元素可以排在x的next（在这个level链表）前面
              // 比较就是2个：1. score 2. score相同比sds
 
-            // todo span作用？ 
+            // 这个累加实际是算当前节点在当前层 
             rank[i] += x->level[i].span;// 当前level的rank 加上x在当前level的span
+
             x = x->level[i].forward; // x指针：next（在这个level链表），即上面被比较的next
         }
         // 2个情况：1. x已经到当前链表的tail 2. x是链表中‘入参元素’可以排在后面的第一个节点
@@ -173,7 +174,7 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
         总结
           上面循环：找到自己在这个level的插入位置（因为怎么有dummy节点，所以怎么都有节点）
           update：就是保存当前level需要插入位置
-          rank与span作用未知：用于计算排名rank
+          rank与span作用：用于计算排名rank
           每层链表是升序的
         */
 
@@ -188,17 +189,21 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     /**
       2. 随机生成level-》给当前元素选个最大level，如果大于当前level，扩大当前跳表层级
     */ 
-    level = zslRandomLevel();
+    level = zslRandomLevel(); 
     // 如果这个随机比当前level大，扩容处理
     if (level > zsl->level) {
+        // 实际扩容处理主要就是处理每一层的dummy头（就是同一个node对象，只是内部level做处理）
+
         // 从当前level遍历到新的level
         for (i = zsl->level; i < level; i++) {
-            rank[i] = 0;// rank归0
+            rank[i] = 0;// 这层rank=0
             // 这层update更新
-            update[i] = zsl->header;// 指向dummy header
-            update[i]->level[i].span = zsl->length;// 新增dummy header 这个level的span为当前长度
+            update[i] = zsl->header;// 指向dummy header，等于初始化这层的横向链表
+            // span初始化为当前跳表元素数量，（这个间隔）代表当前比较这层索引是最后节点
+            // 在下面的插入后这个span会成准确当前新节点的排名间隔，这里这样是为了下面处理代码统一
+            update[i]->level[i].span = zsl->length;
         }
-        zsl->level = level;// 更新level属性为新的
+        zsl->level = level;// 更新level属性为扩容后的
     }
 
     // 创建节点
@@ -218,13 +223,26 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
         update[i]->level[i].forward = x;//等于插入到update对应层级的链表中
 
         /* update span covered by update[i] as x is inserted here */
+        // 这里rank[0] - rank[i]>=0, 因为rank[0]是总的，上面层的rank不可能大于这个数
+        // =0，代表总链表的（前置节点）在当前level有索引
+        // >0 , 就是总链表前置节点在level没索引，所以在这层的插入的位置实际是(总链表)再前面的节点
+        // rank[0] - rank[i] 代表 距离（当前的总排名-在当前索引的prev排名）
+
+        // x的span通过下面计算得到，就是prev原来span（距离next的间隔）- 新加入prev与x的 = x与next的距离
+        // 新增的层在这里prev的span是加入前的链表长度，等于next是最后的，把当前节点加在中间
         x->level[i].span = update[i]->level[i].span - (rank[0] - rank[i]);
+        
+        // prev节点的span
+        // 总链表(第1层)都是1，可知span其实就是2个节点间的差距
+        // 多级索引的2点距离就是 prev与x距离（总排名-在当前索引的偏移量）+1（2个节点默认间隔1）
+        // 新增层会在校正准确的span
         update[i]->level[i].span = (rank[0] - rank[i]) + 1;
     }
 
     /* increment span for untouched levels */
     // level上面的层span+1
-    // -》目前所有层，本次没插入的层span都+1
+    // 其实就是没新增level下-》本次没插入的高层span都+1
+    // 其实就是证明这个区域多了一个元素
     for (i = level; i < zsl->level; i++) {
         update[i]->level[i].span++;
     }
@@ -406,7 +424,7 @@ zskiplistNode *zslFirstInRange(zskiplist *zsl, zrangespec *range) {
     // 一直到底层：因为上层数量少，只能粗力度大范围减少时间，但要控制精确返回，还是需要下层
     for (i = zsl->level-1; i >= 0; i--) {
         /* Go forward while *OUT* of range. */
-        // 直到 x< tart <（or<=） next
+        // 找到大于min的最小值
         while (x->level[i].forward &&
             !zslValueGteMin(x->level[i].forward->score,range))
                 x = x->level[i].forward;
@@ -432,10 +450,11 @@ zskiplistNode *zslLastInRange(zskiplist *zsl, zrangespec *range) {
     if (!zslIsInRange(zsl,range)) return NULL;
 
     x = zsl->header;
+    // 从顶层开始向下遍历，横向向右，找到分数小于命令指定的最大score的最大值
     for (i = zsl->level-1; i >= 0; i--) {
         /* Go forward while *IN* range. */
         while (x->level[i].forward &&
-            zslValueLteMax(x->level[i].forward->score,range))
+            zslValueLteMax(x->level[i].forward->score,range))// 使用节点分数<max，继续扫描
                 x = x->level[i].forward;
     }
 
@@ -443,6 +462,7 @@ zskiplistNode *zslLastInRange(zskiplist *zsl, zrangespec *range) {
     serverAssert(x != NULL);
 
     /* Check if score >= min. */
+    // 验证这个值是否大于min
     if (!zslValueGteMin(x->score,range)) return NULL;
     return x;
 }
@@ -3214,6 +3234,7 @@ static void zrangeResultHandlerDestinationKeySet (zrange_result_handler *handler
 }
 
 /* This command implements ZRANGE, ZREVRANGE. */
+// zrange 通过排名区间获取
 void genericZrangebyrankCommand(zrange_result_handler *handler,
     robj *zobj, long start, long end, int withscores, int reverse) {
 
@@ -3237,6 +3258,8 @@ void genericZrangebyrankCommand(zrange_result_handler *handler,
         return;
     }
     if (end >= llen) end = llen-1;
+    // 因为排名可以想成具体下表，所以end、start确定需要的个数没有问题
+    // rangelen就是最后需要返回的个数
     rangelen = (end-start)+1;
     result_cardinality = rangelen;
 
@@ -3249,18 +3272,23 @@ void genericZrangebyrankCommand(zrange_result_handler *handler,
         long long vlong;
         double score = 0.0;
 
+        // ziplist 直接下标就是排名——》快，O(1)
+        // 查找start的entry，都是2个enry那样查
         if (reverse)
             eptr = ziplistIndex(zl,-2-(2*start));
         else
             eptr = ziplistIndex(zl,2*start);
 
         serverAssertWithInfo(c,zobj,eptr != NULL);
-        sptr = ziplistNext(zl,eptr);
+        sptr = ziplistNext(zl,eptr);// 拿出分数？
 
+        // 遍历需要的次数（就是end到start的差距）
         while (rangelen--) {
             serverAssertWithInfo(c,zobj,eptr != NULL && sptr != NULL);
+            // ziplistGet获取当前的
             serverAssertWithInfo(c,zobj,ziplistGet(eptr,&vstr,&vlen,&vlong));
 
+            // 需要返回分数则解析score
             if (withscores) /* don't bother to extract the score if it's gonna be ignored. */
                 score = zzlGetScore(sptr);
 
@@ -3270,6 +3298,7 @@ void genericZrangebyrankCommand(zrange_result_handler *handler,
                 handler->emitResultFromCBuffer(handler, vstr, vlen, score);
             }
 
+            // 指针更新：反向向前，正向向后
             if (reverse)
                 zzlPrev(zl,&eptr,&sptr);
             else
@@ -3281,21 +3310,28 @@ void genericZrangebyrankCommand(zrange_result_handler *handler,
         zskiplist *zsl = zs->zsl;
         zskiplistNode *ln;
 
+        // 跳表找对应排名还是需要遍历跳表，累加节点间隔得到rank，O(level * Ologn)
         /* Check if starting point is trivial, before doing log(N) lookup. */
+        // start>0 就是有指定开始位置，所以
         if (reverse) {
-            ln = zsl->tail;
+            // 反序
+            ln = zsl->tail; // 没指定start从tail末尾开始
             if (start > 0)
-                ln = zslGetElementByRank(zsl,llen-start);
+                ln = zslGetElementByRank(zsl,llen-start);// 最后倒数start名
         } else {
+            // 顺序
             ln = zsl->header->level[0].forward;
             if (start > 0)
-                ln = zslGetElementByRank(zsl,start+1);
+                ln = zslGetElementByRank(zsl,start+1);// 就是找start+1 -》正数
         }
 
+        // 遍历到需要的数量次数
         while(rangelen--) {
             serverAssertWithInfo(c,zobj,ln != NULL);
             sds ele = ln->ele;
+            // 提交当前ele
             handler->emitResultFromCBuffer(handler, ele, sdslen(ele), ln->score);
+            // 循环指针移动：反向通过backward指针，正向就是backward
             ln = reverse ? ln->backward : ln->level[0].forward;
         }
     } else {
@@ -3352,6 +3388,7 @@ void genericZrangebyscoreCommand(zrange_result_handler *handler,
         long long vlong;
 
         /* If reversed, get the last node in range as starting point. */
+        // 拿到开始节点，就是遍历比较
         if (reverse) {
             eptr = zzlLastInRange(zl,range);
         } else {
@@ -3364,6 +3401,7 @@ void genericZrangebyscoreCommand(zrange_result_handler *handler,
 
         /* If there is an offset, just traverse the number of elements without
          * checking the score because that is done in the next loop. */
+         // 分页开始下标处理
         while (eptr && offset--) {
             if (reverse) {
                 zzlPrev(zl,&eptr,&sptr);
@@ -3372,10 +3410,14 @@ void genericZrangebyscoreCommand(zrange_result_handler *handler,
             }
         }
 
+        // 分页大小次，扫描获取元素
+        // 默认未配置-1：即0个
         while (eptr && limit--) {
+            // 获取分数
             double score = zzlGetScore(sptr);
 
             /* Abort when the node is no longer in range. */
+            // 验证是否超过范围
             if (reverse) {
                 if (!zslValueGteMin(score,range)) break;
             } else {
@@ -3394,6 +3436,7 @@ void genericZrangebyscoreCommand(zrange_result_handler *handler,
             }
 
             /* Move to next node */
+            // 循环指针移动
             if (reverse) {
                 zzlPrev(zl,&eptr,&sptr);
             } else {
@@ -3406,14 +3449,17 @@ void genericZrangebyscoreCommand(zrange_result_handler *handler,
         zskiplistNode *ln;
 
         /* If reversed, get the last node in range as starting point. */
+        // 直接封装了。。。
         if (reverse) {
-            ln = zslLastInRange(zsl,range);
+            ln = zslLastInRange(zsl,range);// 反向从末尾开始，实际正常扫描跳表，找到最大值的节点（可以想成是区间的末尾节点）
         } else {
-            ln = zslFirstInRange(zsl,range);
+            ln = zslFirstInRange(zsl,range);// 正向从头开始，找到区间的开始阶段
         }
 
         /* If there is an offset, just traverse the number of elements without
          * checking the score because that is done in the next loop. */
+         // offset就是分页开始下标，无配置就是0
+         // 这里就是纠正到对应的下标offset位置
         while (ln && offset--) {
             if (reverse) {
                 ln = ln->backward;
@@ -3422,8 +3468,11 @@ void genericZrangebyscoreCommand(zrange_result_handler *handler,
             }
         }
 
+        // limit:分页大小，无配置是-1，即默认0个
+        // 这里就是经过limit次扫描链表，返回元素
         while (ln && limit--) {
             /* Abort when the node is no longer in range. */
+            // 判断是否超出范围超出就是终止
             if (reverse) {
                 if (!zslValueGteMin(ln->score,range)) break;
             } else {
@@ -3434,6 +3483,7 @@ void genericZrangebyscoreCommand(zrange_result_handler *handler,
             handler->emitResultFromCBuffer(handler, ln->ele, sdslen(ln->ele), ln->score);
 
             /* Move to next node */
+            // 指针更新-下次使用
             if (reverse) {
                 ln = ln->backward;
             } else {
@@ -3843,6 +3893,7 @@ void zrangeGenericCommand(zrange_result_handler *handler, int argc_start, int st
     }
 
     /* Step 2: Parse the range. */
+    // 解析命令参数
     switch (rangetype) {
     case ZRANGE_AUTO:
     case ZRANGE_RANK:
@@ -3852,8 +3903,7 @@ void zrangeGenericCommand(zrange_result_handler *handler, int argc_start, int st
         {
             return;
         }
-        break;
-
+        break;    
     case ZRANGE_SCORE:
         /* Z[REV]RANGEBYSCORE, ZRANGESTORE [REV]RANGEBYSCORE */
         if (zslParseRange(c->argv[minidx], c->argv[maxidx], &range) != C_OK) {
@@ -3876,6 +3926,7 @@ void zrangeGenericCommand(zrange_result_handler *handler, int argc_start, int st
     }
 
     /* Step 3: Lookup the key and get the range. */
+    // 找到key
     zobj = handler->dstkey ?
         lookupKeyWrite(c->db,key) :
         lookupKeyRead(c->db,key);
@@ -3892,13 +3943,15 @@ void zrangeGenericCommand(zrange_result_handler *handler, int argc_start, int st
     if (checkType(c,zobj,OBJ_ZSET)) goto cleanup;
 
     /* Step 4: Pass this to the command-specific handler. */
+    // 这里具体执行命令
     switch (rangetype) {
+        // 排名区间（默认）：这个比较简单，通过下标操作运算即可
     case ZRANGE_AUTO:
     case ZRANGE_RANK:
         genericZrangebyrankCommand(handler, zobj, opt_start, opt_end,
             opt_withscores || store, direction == ZRANGE_DIRECTION_REVERSE);
         break;
-
+    // 分数区间  
     case ZRANGE_SCORE:
         genericZrangebyscoreCommand(handler, &range, zobj, opt_offset,
             opt_limit, direction == ZRANGE_DIRECTION_REVERSE);

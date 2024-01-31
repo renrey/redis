@@ -1023,7 +1023,7 @@ typedef struct zskiplistNode {
     // 这个数组就是不同level链表的next指针
     struct zskiplistLevel {
         struct zskiplistNode *forward;//节点在当前level的前一个节点
-        unsigned long span;
+        unsigned long span; // 与上个节点在总链表的排名距离，用于计算排名
     } level[]; // 当前节点所在等级的数组，因为可能在多个等级上
 } zskiplistNode;
 
