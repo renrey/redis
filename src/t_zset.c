@@ -274,22 +274,31 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
  * zslDeleteRangeByRank. */
 void zslDeleteNode(zskiplist *zsl, zskiplistNode *x, zskiplistNode **update) {
     int i;
+    // 常规遍历已在update上：从顶向下遍历，得到当前节点在每个level位置
+
+    // 从每层链表移除当前节点
     for (i = 0; i < zsl->level; i++) {
+        // 这个位置是当前节点
         if (update[i]->level[i].forward == x) {
+            // 移除链表，且更新前置节点span间隔 加上当前节点span-1
             update[i]->level[i].span += x->level[i].span - 1;
             update[i]->level[i].forward = x->level[i].forward;
         } else {
+            // 本层没有这个节点，直接span间隔-1（区间数量-1）
             update[i]->level[i].span -= 1;
         }
     }
+    // 更新总链表中的next节点的backward指针
     if (x->level[0].forward) {
         x->level[0].forward->backward = x->backward;
     } else {
+        // tail更新
         zsl->tail = x->backward;
     }
+    // 当顶层原来只有当前节点（删除后等于空链表），去除level链表直到顶层没有空链表
     while(zsl->level > 1 && zsl->header->level[zsl->level-1].forward == NULL)
         zsl->level--;
-    zsl->length--;
+    zsl->length--;//length-1
 }
 
 /* Delete an element with matching score/element from the skiplist.
@@ -319,6 +328,7 @@ int zslDelete(zskiplist *zsl, double score, sds ele, zskiplistNode **node) {
      * is to find the element with both the right score and object. */
     x = x->level[0].forward;
     if (x && score == x->score && sdscmp(x->ele,ele) == 0) {
+        // 从跳表移除
         zslDeleteNode(zsl, x, update);
         if (!node)
             zslFreeNode(x);
@@ -347,6 +357,8 @@ zskiplistNode *zslUpdateScore(zskiplist *zsl, double curscore, sds ele, double n
     /* We need to seek to element to update to start: this is useful anyway,
      * we'll have to update or remove it. */
     x = zsl->header;
+    // 常规：第一次遍历从顶层开始
+    // 这个遍历是得到原来score 在每层的位置（属于自己前面的）
     for (i = zsl->level-1; i >= 0; i--) {
         while (x->level[i].forward &&
                 (x->level[i].forward->score < curscore ||
@@ -360,26 +372,33 @@ zskiplistNode *zslUpdateScore(zskiplist *zsl, double curscore, sds ele, double n
 
     /* Jump to our element: note that this function assumes that the
      * element with the matching score exists. */
+    // x指针指向具体（next，原来x是前置的）
+    // 此时x就是原来这个成员的节点
     x = x->level[0].forward;
     serverAssert(x && curscore == x->score && sdscmp(x->ele,ele) == 0);
 
     /* If the node, after the score update, would be still exactly
      * at the same position, we can just update the score without
      * actually removing and re-inserting the element in the skiplist. */
+     // 原分数是最小or最大的情况处理，针对无须移动节点
+     // 1. 最小：new分数< 老
+     // 2. 最大：new分数> 老
     if ((x->backward == NULL || x->backward->score < newscore) &&
         (x->level[0].forward == NULL || x->level[0].forward->score > newscore))
     {
-        x->score = newscore;
+        x->score = newscore;// 直接更新无须移动
         return x;
     }
 
     /* No way to reuse the old node: we need to remove and insert a new
      * one at a different place. */
+    // 先删旧节点，再新增
     zslDeleteNode(zsl, x, update);
     zskiplistNode *newnode = zslInsert(zsl,newscore,x->ele);
     /* We reused the old node x->ele SDS string, free the node now
      * since zslInsert created a new one. */
     x->ele = NULL;
+    // 释放老对象的空间
     zslFreeNode(x);
     return newnode;
 }
@@ -1491,6 +1510,7 @@ int zsetAdd(robj *zobj, double score, sds ele, int in_flags, int *out_flags, dou
             }
 
             /* Prepare the score for the increment if needed. */
+            // 自增更新
             if (incr) {
                 score += curscore;
                 if (isnan(score)) {//不是数字
@@ -1509,6 +1529,7 @@ int zsetAdd(robj *zobj, double score, sds ele, int in_flags, int *out_flags, dou
 
             /* Remove and re-insert when score changed. */
             // 有改变score才真正进行处理，不然浪费时间
+            // 注意这里：必须先删后后加
             if (score != curscore) {
                 // 1. 从ziplist删除entry
                 zobj->ptr = zzlDelete(zobj->ptr,eptr);
@@ -1559,6 +1580,7 @@ int zsetAdd(robj *zobj, double score, sds ele, int in_flags, int *out_flags, dou
             curscore = *(double*)dictGetVal(de);
 
             /* Prepare the score for the increment if needed. */
+            // 自增更新-》拿回原来的自增更新
             if (incr) {
                 score += curscore;
                 if (isnan(score)) {
@@ -1616,6 +1638,7 @@ static int zsetRemoveFromSkiplist(zset *zs, sds ele) {
     dictEntry *de;
     double score;
 
+    // 1. 从dict移除
     de = dictUnlink(zs->dict,ele);
     if (de != NULL) {
         /* Get the score in order to delete from the skiplist later. */
@@ -1626,9 +1649,11 @@ static int zsetRemoveFromSkiplist(zset *zs, sds ele) {
          * actually releases the SDS string representing the element,
          * which is shared between the skiplist and the hash table, so
          * we need to delete from the skiplist as the final step. */
+         // 释放dictEntry空间
         dictFreeUnlinkedEntry(zs->dict,de);
 
         /* Delete from skiplist. */
+        // 2. 从跳表删除
         int retval = zslDelete(zs->zsl,score,ele,NULL);
         serverAssert(retval);
 
@@ -1643,13 +1668,15 @@ static int zsetRemoveFromSkiplist(zset *zs, sds ele) {
 int zsetDel(robj *zobj, sds ele) {
     if (zobj->encoding == OBJ_ENCODING_ZIPLIST) {
         unsigned char *eptr;
-
+        // 遍历ziplist找到元素 O(n)
         if ((eptr = zzlFind(zobj->ptr,ele,NULL)) != NULL) {
+            // 直接删除2个entry
             zobj->ptr = zzlDelete(zobj->ptr,eptr);
             return 1;
         }
     } else if (zobj->encoding == OBJ_ENCODING_SKIPLIST) {
         zset *zs = zobj->ptr;
+        // 从skiplist删除：1. 删除dict的key 2. 从跳表删除
         if (zsetRemoveFromSkiplist(zs, ele)) {
             if (htNeedsResize(zs->dict)) dictResize(zs->dict);
             return 1;
@@ -1921,7 +1948,7 @@ void zaddGenericCommand(client *c, int flags) {
     }
 
     /* Turn options into simple to check vars. */
-    int incr = (flags & ZADD_IN_INCR) != 0;
+    int incr = (flags & ZADD_IN_INCR) != 0;// 自增操作
     int nx = (flags & ZADD_IN_NX) != 0;
     int xx = (flags & ZADD_IN_XX) != 0;
     int gt = (flags & ZADD_IN_GT) != 0;
@@ -1950,7 +1977,7 @@ void zaddGenericCommand(client *c, int flags) {
         return;
     }
     /* Note that XX is compatible with either GT or LT */
-
+    // 自增命令验证：只能操作1个成员
     if (incr && elements > 1) {
         addReplyError(c,
             "INCR option supports a single increment-element pair");
@@ -1992,6 +2019,7 @@ void zaddGenericCommand(client *c, int flags) {
         }
         dbAdd(c->db,key,zobj);//新增key到db
     }
+    // 可知
 
     // 开始遍历命令的元素，加入到zset中
     for (j = 0; j < elements; j++) {
@@ -2037,6 +2065,8 @@ void zaddCommand(client *c) {
 }
 
 void zincrbyCommand(client *c) {
+    // 只能自增1个成员
+    // 如果成员存在，就是拿到原来score自增，然后更新zset（不涉及大操作）
     zaddGenericCommand(c,ZADD_IN_INCR);
 }
 
@@ -2047,9 +2077,11 @@ void zremCommand(client *c) {
 
     if ((zobj = lookupKeyWriteOrReply(c,key,shared.czero)) == NULL ||
         checkType(c,zobj,OBJ_ZSET)) return;
-
+    // 遍历命令中所有成员
     for (j = 2; j < c->argc; j++) {
+        // 删除成员
         if (zsetDel(zobj,c->argv[j]->ptr)) deleted++;
+        // 如果zset中没有元素，从db删除key
         if (zsetLength(zobj) == 0) {
             dbDelete(c->db,key);
             keyremoved = 1;
@@ -2866,7 +2898,7 @@ void zunionInterDiffGenericCommand(client *c, robj *dstkey, int numkeysIndex, in
         * algorithm's performance */
         qsort(src,setnum,sizeof(zsetopsrc),zuiCompareByCardinality);
     }
-
+    // 这类命令都是skiplist
     dstobj = createZsetObject();
     dstzset = dstobj->ptr;
     memset(&zval, 0, sizeof(zval));
@@ -3572,7 +3604,9 @@ void zcountCommand(client *c) {
         /* Find first element in range */
         // 1.找到第一个
         zn = zslFirstInRange(zsl, &range);
-
+        /**
+        * 这样子拿头尾，应该是认为在skip遍历速度很快，执行2次比1次O(n)快 
+        */
         /* Use rank of first element, if any, to determine preliminary count */
         if (zn != NULL) {
             // 找到第一个的rank

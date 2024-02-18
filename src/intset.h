@@ -33,8 +33,9 @@
 #include <stdint.h>
 
 typedef struct intset {
-    uint32_t encoding;
-    uint32_t length;
+    uint32_t encoding; //content项长度编码（3种：16、32、64对应数字长度）
+    // 这个还有个好处：快速判断入参是否当前范围内（入参编码超过当前编码肯定不在）
+    uint32_t length; // content有多少个
     int8_t contents[];
 } intset;
 

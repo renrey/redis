@@ -40,8 +40,10 @@ void sunionDiffGenericCommand(client *c, robj **setkeys, int setnum,
  * an integer-encodable value, an intset will be returned. Otherwise a regular
  * hash table. */
 robj *setTypeCreate(sds value) {
+    // value是纯long数字，intset
     if (isSdsRepresentableAsLongLong(value,NULL) == C_OK)
         return createIntsetObject();
+    // 默认ht编码
     return createSetObject();
 }
 
@@ -53,13 +55,17 @@ int setTypeAdd(robj *subject, sds value) {
     long long llval;
     if (subject->encoding == OBJ_ENCODING_HT) {
         dict *ht = subject->ptr;
+        // 查找key，不存在就新增key
         dictEntry *de = dictAddRaw(ht,value,NULL);
         if (de) {
+            // key=value，value=Null
             dictSetKey(ht,de,sdsdup(value));
             dictSetVal(ht,de,NULL);
             return 1;
         }
     } else if (subject->encoding == OBJ_ENCODING_INTSET) {
+        // intset新增
+        // 数字继续使用intset
         if (isSdsRepresentableAsLongLong(value,&llval) == C_OK) {
             uint8_t success = 0;
             subject->ptr = intsetAdd(subject->ptr,llval,&success);
@@ -69,12 +75,17 @@ int setTypeAdd(robj *subject, sds value) {
                 size_t max_entries = server.set_max_intset_entries;
                 /* limit to 1G entries due to intset internals. */
                 if (max_entries >= 1<<30) max_entries = 1<<30;
+                /**
+                * 插入后，大于set_max_intset_entries（默认512），也会转换成ht
+                ！！！
+                */
                 if (intsetLen(subject->ptr) > max_entries)
                     setTypeConvert(subject,OBJ_ENCODING_HT);
                 return 1;
             }
         } else {
             /* Failed to get integer from object, convert to regular set. */
+            // 本次插入的不是数字，转成ht
             setTypeConvert(subject,OBJ_ENCODING_HT);
 
             /* The set *was* an intset and this value is not integer
@@ -91,13 +102,16 @@ int setTypeAdd(robj *subject, sds value) {
 int setTypeRemove(robj *setobj, sds value) {
     long long llval;
     if (setobj->encoding == OBJ_ENCODING_HT) {
+        // ht就删key
         if (dictDelete(setobj->ptr,value) == DICT_OK) {
             if (htNeedsResize(setobj->ptr)) dictResize(setobj->ptr);
             return 1;
         }
     } else if (setobj->encoding == OBJ_ENCODING_INTSET) {
+        // intset
         if (isSdsRepresentableAsLongLong(value,&llval) == C_OK) {
             int success;
+            // 执行删除
             setobj->ptr = intsetRemove(setobj->ptr,llval,&success);
             if (success) return 1;
         }
@@ -110,8 +124,10 @@ int setTypeRemove(robj *setobj, sds value) {
 int setTypeIsMember(robj *subject, sds value) {
     long long llval;
     if (subject->encoding == OBJ_ENCODING_HT) {
+        // 找key
         return dictFind((dict*)subject->ptr,value) != NULL;
     } else if (subject->encoding == OBJ_ENCODING_INTSET) {
+        // 二分查找
         if (isSdsRepresentableAsLongLong(value,&llval) == C_OK) {
             return intsetFind((intset*)subject->ptr,llval);
         }
@@ -306,8 +322,9 @@ void saddCommand(client *c) {
 
     set = lookupKeyWrite(c->db,c->argv[1]);
     if (checkType(c,set,OBJ_SET)) return;
-    
+    // 未有key，新建set
     if (set == NULL) {
+        // 根据第一个value来选择编码
         set = setTypeCreate(c->argv[2]->ptr);
         dbAdd(c->db,c->argv[1],set);
     }
@@ -329,10 +346,11 @@ void sremCommand(client *c) {
 
     if ((set = lookupKeyWriteOrReply(c,c->argv[1],shared.czero)) == NULL ||
         checkType(c,set,OBJ_SET)) return;
-
+    // 遍历参数执行删除    
     for (j = 2; j < c->argc; j++) {
         if (setTypeRemove(set,c->argv[j]->ptr)) {
             deleted++;
+            // set空了，要删除，节省空间
             if (setTypeSize(set) == 0) {
                 dbDelete(c->db,c->argv[1]);
                 keyremoved = 1;
@@ -376,6 +394,8 @@ void smoveCommand(client *c) {
     }
 
     /* If the element cannot be removed from the src set, return 0. */
+    // 先从当前set删除
+    // 不存在会报错
     if (!setTypeRemove(srcset,ele->ptr)) {
         addReply(c,shared.czero);
         return;
@@ -383,12 +403,14 @@ void smoveCommand(client *c) {
     notifyKeyspaceEvent(NOTIFY_SET,"srem",c->argv[1],c->db->id);
 
     /* Remove the src set from the database when empty */
+    // 节省内存处理，源set空了删除
     if (setTypeSize(srcset) == 0) {
         dbDelete(c->db,c->argv[1]);
         notifyKeyspaceEvent(NOTIFY_GENERIC,"del",c->argv[1],c->db->id);
     }
 
     /* Create the destination set when it doesn't exist */
+    // 目的set不存在，创建set
     if (!dstset) {
         dstset = setTypeCreate(ele->ptr);
         dbAdd(c->db,c->argv[2],dstset);
@@ -398,6 +420,7 @@ void smoveCommand(client *c) {
     server.dirty++;
 
     /* An extra key has changed when ele was successfully added to dstset */
+    // 写入到目的set中
     if (setTypeAdd(dstset,ele->ptr)) {
         server.dirty++;
         signalModifiedKey(c,c->db,c->argv[2]);
@@ -865,6 +888,7 @@ void sinterGenericCommand(client *c, robj **setkeys,
     unsigned long j, cardinality = 0;
     int encoding, empty = 0;
 
+    // 获取这些key的set
     for (j = 0; j < setnum; j++) {
         robj *setobj = dstkey ?
             lookupKeyWrite(c->db,setkeys[j]) :
@@ -884,6 +908,7 @@ void sinterGenericCommand(client *c, robj **setkeys,
 
     /* Set intersection with an empty set always results in an empty set.
      * Return ASAP if there is an empty set. */
+     // 有空set，直接返回
     if (empty > 0) {
         zfree(sets);
         if (dstkey) {
@@ -901,6 +926,7 @@ void sinterGenericCommand(client *c, robj **setkeys,
 
     /* Sort sets from the smallest to largest, this will improve our
      * algorithm's performance */
+     // 根据set数量排序
     qsort(sets,setnum,sizeof(robj*),qsortCompareSetsByCardinality);
 
     /* The first thing we should output is the total number of elements...
@@ -913,6 +939,7 @@ void sinterGenericCommand(client *c, robj **setkeys,
     } else {
         /* If we have a target key where to store the resulting set
          * create this key with an empty set inside */
+         // 默认是intset
         dstset = createIntsetObject();
     }
 
@@ -920,10 +947,13 @@ void sinterGenericCommand(client *c, robj **setkeys,
      * the element against all the other sets, if at least one set does
      * not include the element it is discarded */
     si = setTypeInitIterator(sets[0]);
+    // 开始遍历第一个set
     while((encoding = setTypeNext(si,&elesds,&intobj)) != -1) {
+        // 遍历其他set
         for (j = 1; j < setnum; j++) {
             if (sets[j] == sets[0]) continue;
             if (encoding == OBJ_ENCODING_INTSET) {
+                // 第一个set是intset则复杂点
                 /* intset with intset is simple... and fast */
                 if (sets[j]->encoding == OBJ_ENCODING_INTSET &&
                     !intsetFind((intset*)sets[j]->ptr,intobj))
@@ -941,6 +971,8 @@ void sinterGenericCommand(client *c, robj **setkeys,
                     sdsfree(elesds);
                 }
             } else if (encoding == OBJ_ENCODING_HT) {
+                // 第1个set是ht
+                // 不包含这个第1个set的elel，就下一个
                 if (!setTypeIsMember(sets[j],elesds)) {
                     break;
                 }
@@ -1037,27 +1069,34 @@ void sunionDiffGenericCommand(client *c, robj **setkeys, int setnum,
      *
      * Algorithm 2 is O(N) where N is the total number of elements in all
      * the sets.
-     *
+     * 有2种算法
+     * 算法1: O(n*m) n是第一个set长度，m是所有set数量，即用第一个set去遍历所有set（2层循环）
+     * 算法2:O(n) 所有set加起来的元素总数（1层循环所有set？）
      * We compute what is the best bet with the current input here. */
+     // 差集
     if (op == SET_OP_DIFF && sets[0]) {
         long long algo_one_work = 0, algo_two_work = 0;
 
         for (j = 0; j < setnum; j++) {
             if (sets[j] == NULL) continue;
 
-            algo_one_work += setTypeSize(sets[0]);
-            algo_two_work += setTypeSize(sets[j]);
+            algo_one_work += setTypeSize(sets[0]);// 算法1一直+第一个set长度
+            algo_two_work += setTypeSize(sets[j]);// 算法2则是每个set长度
         }
 
         /* Algorithm 1 has better constant times and performs less operations
          * if there are elements in common. Give it some advantage. */
-        algo_one_work /= 2;
+        algo_one_work /= 2;// 算法1的再除以2，优先级就更高，因为操作更轻
+        // 选择使用哪种算法
+        // 看哪种次数少
         diff_algo = (algo_one_work <= algo_two_work) ? 1 : 2;
 
+        // 算法1
         if (diff_algo == 1 && setnum > 1) {
             /* With algorithm 1 it is better to order the sets to subtract
              * by decreasing size, so that we are more likely to find
              * duplicated elements ASAP. */
+            // 按照set里元素数量给这些set排序
             qsort(sets+1,setnum-1,sizeof(robj*),
                 qsortCompareSetsByRevCardinality);
         }
@@ -1082,6 +1121,8 @@ void sunionDiffGenericCommand(client *c, robj **setkeys, int setnum,
             setTypeReleaseIterator(si);
         }
     } else if (op == SET_OP_DIFF && sets[0] && diff_algo == 1) {
+        // diff算法1
+
         /* DIFF Algorithm 1:
          *
          * We perform the diff by iterating all the elements of the first set,
@@ -1090,15 +1131,19 @@ void sunionDiffGenericCommand(client *c, robj **setkeys, int setnum,
          *
          * This way we perform at max N*M operations, where N is the size of
          * the first set, and M the number of sets. */
-        si = setTypeInitIterator(sets[0]);
+        si = setTypeInitIterator(sets[0]);// 第1个set的迭代器
+        // 使用第1个set来循环
         while((ele = setTypeNextObject(si)) != NULL) {
+            // 内层循环其他的set
             for (j = 1; j < setnum; j++) {
                 if (!sets[j]) continue; /* no key is an empty set. */
                 if (sets[j] == sets[0]) break; /* same set! */
+                // 只有ele在一个set中存在就，终止不属于差集
                 if (setTypeIsMember(sets[j],ele)) break;
             }
             if (j == setnum) {
                 /* There is no other set with this element. Add it. */
+                // 只有ele不在其他任何set中出现，才会加入结果的差集set
                 setTypeAdd(dstset,ele);
                 cardinality++;
             }
@@ -1113,11 +1158,15 @@ void sunionDiffGenericCommand(client *c, robj **setkeys, int setnum,
          *
          * This is O(N) where N is the sum of all the elements in every
          * set. */
+         // diff算法2
+         // 遍历所有set
         for (j = 0; j < setnum; j++) {
             if (!sets[j]) continue; /* non existing keys are like empty sets */
 
-            si = setTypeInitIterator(sets[j]);
+            si = setTypeInitIterator(sets[j]);// 当前set的迭代器
+            // 就是遍历set了
             while((ele = setTypeNextObject(si)) != NULL) {
+                // 第一个set的加入（因为是看第一个set在其他有没有的），其他set调用删除
                 if (j == 0) {
                     if (setTypeAdd(dstset,ele)) cardinality++;
                 } else {

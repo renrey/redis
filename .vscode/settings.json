@@ -18,24 +18,20 @@
             "event.h": "c"
       },
       "files.exclude": {
-            "**/*.d": true,
-            "**/*.o": true,            
-            "**/.*": true,
-
-            ".git*": true,
             ".cache*": true,
-            
+            ".git*": true,
+            "**/*.d": true,
+            "**/*.o": true,
+            "*/.*": true,
             "00*": true,
-            "build*": true,
-
-            "compile*": true,
             "BUGS": true,
+            "build*": true,
             "CO*": true,
+            "compile*": true,
             "INST*": true,
             "MAN*": true,
-            "test*": true, 
-
-            "run*":true
+            "run*": true,
+            "test*": true
       },
       "C_Cpp.intelliSenseEngine": "disabled",
       "C_Cpp.default.intelliSenseMode": "macos-clang-x64"

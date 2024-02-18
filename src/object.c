@@ -259,16 +259,18 @@ robj *createSetObject(void) {
 }
 
 robj *createIntsetObject(void) {
+    // 创建intset
     intset *is = intsetNew();
     robj *o = createObject(OBJ_SET,is);
-    o->encoding = OBJ_ENCODING_INTSET;
+    o->encoding = OBJ_ENCODING_INTSET;// intset
     return o;
 }
 
 robj *createHashObject(void) {
+    // 直接ziplist
     unsigned char *zl = ziplistNew();
     robj *o = createObject(OBJ_HASH, zl);
-    o->encoding = OBJ_ENCODING_ZIPLIST;
+    o->encoding = OBJ_ENCODING_ZIPLIST;// ziplist
     return o;
 }
 

@@ -212,22 +212,30 @@ int hashTypeSet(robj *o, sds field, sds value, int flags) {
         unsigned char *zl, *fptr, *vptr;
 
         zl = o->ptr;
+        // 找到ziplist的head节点
         fptr = ziplistIndex(zl, ZIPLIST_HEAD);
+        // 代表ziplist不为空
         if (fptr != NULL) {
+            // 在ziplist找当前field的entry
             fptr = ziplistFind(zl, fptr, (unsigned char*)field, sdslen(field), 1);
+            // 存在field
             if (fptr != NULL) {
                 /* Grab pointer to the value (fptr points to the field) */
+                // field entry后一个entry就是value
                 vptr = ziplistNext(zl, fptr);
                 serverAssert(vptr != NULL);
                 update = 1;
 
                 /* Replace value */
+                // entry 替换value
                 zl = ziplistReplace(zl, vptr, (unsigned char*)value,
                         sdslen(value));
             }
         }
 
+        // 没有则是新增push到ziplist
         if (!update) {
+            // 直接在末尾push2次（field、value）
             /* Push new field/value pair onto the tail of the ziplist */
             zl = ziplistPush(zl, (unsigned char*)field, sdslen(field),
                     ZIPLIST_TAIL);
@@ -237,12 +245,16 @@ int hashTypeSet(robj *o, sds field, sds value, int flags) {
         o->ptr = zl;
 
         /* Check if the ziplist needs to be converted to a hash table */
+        // 超过hash_max_ziplist_entries(默认512)，变为ht
         if (hashTypeLength(o) > server.hash_max_ziplist_entries)
             hashTypeConvert(o, OBJ_ENCODING_HT);
     // ht    
     } else if (o->encoding == OBJ_ENCODING_HT) {
+        // dict查找
         dictEntry *de = dictFind(o->ptr,field);
+        // 已有这个key-》更新
         if (de) {
+            // 释放这个旧的val的sds
             sdsfree(dictGetVal(de));
             if (flags & HASH_SET_TAKE_VALUE) {
                 dictGetVal(de) = value;
@@ -252,7 +264,9 @@ int hashTypeSet(robj *o, sds field, sds value, int flags) {
             }
             update = 1;
         } else {
+            // 新增key
             sds f,v;
+            // 都拷贝sds
             if (flags & HASH_SET_TAKE_FIELD) {
                 f = field;
                 field = NULL;
@@ -265,6 +279,7 @@ int hashTypeSet(robj *o, sds field, sds value, int flags) {
             } else {
                 v = sdsdup(value);
             }
+            // 放入dcit
             dictAdd(o->ptr,f,v);
         }
     } else {
@@ -273,6 +288,7 @@ int hashTypeSet(robj *o, sds field, sds value, int flags) {
 
     /* Free SDS strings we did not referenced elsewhere if the flags
      * want this function to be responsible. */
+     // 释放field、value的空间
     if (flags & HASH_SET_TAKE_FIELD && field) sdsfree(field);
     if (flags & HASH_SET_TAKE_VALUE && value) sdsfree(value);
     return update;
@@ -459,6 +475,7 @@ robj *hashTypeLookupWriteOrCreate(client *c, robj *key) {
 
     // 新建
     if (o == NULL) {
+        // 初始就是ziplist
         o = createHashObject();
         dbAdd(c->db,key,o);
     }
@@ -477,13 +494,15 @@ void hashTypeConvertZiplist(robj *o, int enc) {
         int ret;
 
         hi = hashTypeInitIterator(o);
+        // 创建dict
         dict = dictCreate(&hashDictType, NULL);
-
+        // 遍历ziplist
         while (hashTypeNext(hi) != C_ERR) {
             sds key, value;
-
+            // ht存的都是sds类型
             key = hashTypeCurrentObjectNewSds(hi,OBJ_HASH_KEY);
             value = hashTypeCurrentObjectNewSds(hi,OBJ_HASH_VALUE);
+            // 加入到dict
             ret = dictAdd(dict, key, value);
             if (ret != DICT_OK) {
                 serverLogHexDump(LL_WARNING,"ziplist with dup elements dump",
@@ -492,8 +511,8 @@ void hashTypeConvertZiplist(robj *o, int enc) {
             }
         }
         hashTypeReleaseIterator(hi);
-        zfree(o->ptr);
-        o->encoding = OBJ_ENCODING_HT;
+        zfree(o->ptr);// 释放ziplist空间
+        o->encoding = OBJ_ENCODING_HT;// 编码变ht
         o->ptr = dict;
     } else {
         serverPanic("Unknown hash encoding");
@@ -670,14 +689,18 @@ void hsetCommand(client *c) {
     }
     // 获取or新建hash
     if ((o = hashTypeLookupWriteOrCreate(c,c->argv[1])) == NULL) return;
+    /**
+    * 这里可能触发转换encoding
+    */
     hashTypeTryConversion(o,c->argv,2,c->argc-1);
 
-    // 遍历参数执行
+    // 遍历参数执行 set hash对象
     for (i = 2; i < c->argc; i += 2)
         created += !hashTypeSet(o,c->argv[i]->ptr,c->argv[i+1]->ptr,HASH_SET_COPY);
 
     /* HMSET (deprecated) and HSET return value is different. */
     char *cmdname = c->argv[0]->ptr;
+    // 返回的是创建多少个hkey
     if (cmdname[1] == 's' || cmdname[1] == 'S') {
         /* HSET */
         addReplyLongLong(c, created);
