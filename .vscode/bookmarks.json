@@ -379,17 +379,7 @@
 					"label": "embstr编码"
 				},
 				{
-					"line": 260,
-					"column": 0,
-					"label": "创建初始intset"
-				},
-				{
-					"line": 268,
-					"column": 0,
-					"label": "hash对象默认创建"
-				},
-				{
-					"line": 462,
+					"line": 460,
 					"column": 0,
 					"label": "对val编码"
 				}
@@ -419,44 +409,9 @@
 			"path": "src/t_hash.c",
 			"bookmarks": [
 				{
-					"line": 39,
-					"column": 0,
-					"label": "hashTypeTryConversion-把ziplist编码转成ht的入口"
-				},
-				{
-					"line": 206,
-					"column": 0,
-					"label": "hashTypeSet-对hash对象set"
-				},
-				{
-					"line": 248,
-					"column": 0,
-					"label": "编码变为ht-新增后，长度大于512"
-				},
-				{
-					"line": 267,
-					"column": 0,
-					"label": "ht-新增，key、value都是sds"
-				},
-				{
-					"line": 476,
-					"column": 0,
-					"label": "key不存在，创建key的hash对象"
-				},
-				{
-					"line": 484,
-					"column": 0,
-					"label": "hashTypeConvertZiplist-ziplist转ht"
-				},
-				{
-					"line": 682,
+					"line": 663,
 					"column": 0,
 					"label": "hset命令"
-				},
-				{
-					"line": 694,
-					"column": 0,
-					"label": "hset-写set前可能先转换编码为ht"
 				}
 			]
 		},
@@ -479,39 +434,19 @@
 					"label": "根据encoding解析转换内容"
 				},
 				{
-					"line": 765,
+					"line": 763,
 					"column": 0,
 					"label": "ziplist创建"
 				},
 				{
-					"line": 815,
-					"column": 0,
-					"label": "__ziplistCascadeUpdate-级连更新，遍历更新后面entry的prelen"
-				},
-				{
-					"line": 915,
-					"column": 0,
-					"label": "对ziplist操作删除"
-				},
-				{
-					"line": 1039,
+					"line": 990,
 					"column": 0,
 					"label": "ziplist insert插入"
 				},
 				{
-					"line": 1442,
+					"line": 1393,
 					"column": 0,
 					"label": "ziplistGet-获取当前entry得内容"
-				},
-				{
-					"line": 1473,
-					"column": 0,
-					"label": "ziplistDelete-删除一个entry"
-				},
-				{
-					"line": 1496,
-					"column": 0,
-					"label": "ziplistReplace-更换内容"
 				}
 			]
 		},
@@ -584,224 +519,74 @@
 					"label": "skiplist-初始创建跳表"
 				},
 				{
-					"line": 136,
-					"column": 0,
-					"label": "skiplist-新增节点"
-				},
-				{
-					"line": 274,
-					"column": 0,
-					"label": "skiplist-删除节点"
-				},
-				{
-					"line": 352,
-					"column": 0,
-					"label": "skiplist-更新分数"
-				},
-				{
-					"line": 385,
-					"column": 0,
-					"label": "更新分数会根据原节点在头尾来判断是否需要移动节点"
-				},
-				{
-					"line": 395,
-					"column": 0,
-					"label": "更新分数要移动节点，需要先删再加"
-				},
-				{
-					"line": 618,
+					"line": 546,
 					"column": 0,
 					"label": "关键--skiplist计算元素排名"
 				},
 				{
-					"line": 1532,
+					"line": 1491,
 					"column": 0,
-					"label": "ziplist-更新分数"
+					"label": "ziplist-更新分数操作"
 				},
 				{
-					"line": 1541,
+					"line": 1523,
 					"column": 0,
-					"label": "ziplist-新增元素"
+					"label": "skiplist-插入元素"
 				},
 				{
-					"line": 1602,
+					"line": 1559,
 					"column": 0,
-					"label": "zadd-skiplist更新分数"
+					"label": "skiplist-更新分数"
 				},
 				{
-					"line": 1610,
+					"line": 1572,
 					"column": 0,
-					"label": "zadd-skiplist新增"
+					"label": "skiplist-新增"
 				},
 				{
-					"line": 1709,
+					"line": 1662,
 					"column": 0,
 					"label": "ziplist-元素rank排名"
 				},
 				{
-					"line": 1740,
+					"line": 1694,
 					"column": 0,
 					"label": "skiplist-元素rank排名"
 				},
 				{
-					"line": 2012,
+					"line": 1965,
 					"column": 0,
-					"label": "关键--新建set选择set的编码"
+					"label": "关键--选择set的编码"
 				},
 				{
-					"line": 2063,
+					"line": 2014,
 					"column": 0,
 					"label": "命令-zadd"
 				},
 				{
-					"line": 2066,
-					"column": 0,
-					"label": "命令-zincrby-自增成员分数"
-				},
-				{
-					"line": 2072,
-					"column": 0,
-					"label": "命令-zrem-移除成员（可多个）"
-				},
-				{
-					"line": 2084,
-					"column": 0,
-					"label": "zrem中如果删除后，zset空会移除key"
-				},
-				{
-					"line": 2901,
-					"column": 0,
-					"label": "关键-zunion、inter、diff命令都是skiplist"
-				},
-				{
-					"line": 3385,
+					"line": 3318,
 					"column": 0,
 					"label": "命令-ZRANGE-获取指定下标的元素"
 				},
 				{
-					"line": 3546,
+					"line": 3465,
 					"column": 0,
-					"label": "命令-ZCOUNT-统计分数区间数量"
+					"label": "命令-ZCOUNT-统计区间数量"
 				},
 				{
-					"line": 3621,
-					"column": 0,
-					"label": "skiplist统计区间直接获取头尾相减"
-				},
-				{
-					"line": 4009,
+					"line": 3922,
 					"column": 0,
 					"label": "命令-ZCARD-获取set数量"
 				},
 				{
-					"line": 4019,
+					"line": 3932,
 					"column": 0,
 					"label": "命令-zscore- 获取单个分数"
 				},
 				{
-					"line": 4078,
+					"line": 3991,
 					"column": 0,
 					"label": "命令-zrank-获取排名"
-				}
-			]
-		},
-		{
-			"path": "src/rdb.c",
-			"bookmarks": [
-				{
-					"line": 1529,
-					"column": 0,
-					"label": "从rdb文件加载对象"
-				}
-			]
-		},
-		{
-			"path": "src/t_set.c",
-			"bookmarks": [
-				{
-					"line": 41,
-					"column": 0,
-					"label": "set-创建时选择编码"
-				},
-				{
-					"line": 53,
-					"column": 0,
-					"label": "set-插入新增"
-				},
-				{
-					"line": 58,
-					"column": 0,
-					"label": "ht新增-插入key=value，value=Null"
-				},
-				{
-					"line": 82,
-					"column": 0,
-					"label": "inset插入后超过上限变ht"
-				},
-				{
-					"line": 88,
-					"column": 0,
-					"label": "inset新增元素-转换编码为ht"
-				},
-				{
-					"line": 318,
-					"column": 0,
-					"label": "命令-sadd"
-				},
-				{
-					"line": 342,
-					"column": 0,
-					"label": "命令-srem-删除"
-				},
-				{
-					"line": 353,
-					"column": 0,
-					"label": "如果rem后无元素，会删除key"
-				},
-				{
-					"line": 371,
-					"column": 0,
-					"label": "命令-smove-从当前set移动别的set"
-				},
-				{
-					"line": 1027,
-					"column": 0,
-					"label": "命令-sinter-交集"
-				},
-				{
-					"line": 1064,
-					"column": 0,
-					"label": "diff有2种算法"
-				},
-				{
-					"line": 1229,
-					"column": 0,
-					"label": "命令-sdiff-获取多个set的差集（只出现在1个set的）"
-				}
-			]
-		},
-		{
-			"path": "src/intset.c",
-			"bookmarks": [
-				{
-					"line": 98,
-					"column": 0,
-					"label": "初始create"
-				},
-				{
-					"line": 146,
-					"column": 0,
-					"label": "intset中检索使用二分查找"
-				},
-				{
-					"line": 234,
-					"column": 0,
-					"label": "inset-add元素"
-				},
-				{
-					"line": 277,
-					"column": 0,
-					"label": "intsetRemove-删除"
 				}
 			]
 		}
