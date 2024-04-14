@@ -532,7 +532,7 @@ void popGenericCommand(client *c, int where) {
          *  which replies with a multi-bulk. */
         long llen = listTypeLength(o);
         long rangelen = (count > llen) ? llen : count;
-        long rangestart = (where == LIST_HEAD) ? 0 : -rangelen;
+        long rangestart = (where == LIST_HEAD) ? 0 : -rangelen;// 头就是0，未就是负数
         long rangeend = (where == LIST_HEAD) ? rangelen - 1 : -1;
         int reverse = (where == LIST_HEAD) ? 0 : 1;
 

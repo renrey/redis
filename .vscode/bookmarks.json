@@ -34,92 +34,97 @@
 					"label": "默认dict的hash函数"
 				},
 				{
-					"line": 2498,
+					"line": 2411,
+					"column": 0,
+					"label": "io事件驱动sleep前-执行主动过期扫描key"
+				},
+				{
+					"line": 2499,
 					"column": 0,
 					"label": "创建共享对象-- 减少可知值的对象创建"
 				},
 				{
-					"line": 3084,
+					"line": 3085,
 					"column": 0,
 					"label": "监听端口逻辑-start"
 				},
 				{
-					"line": 3238,
+					"line": 3239,
 					"column": 0,
 					"label": "创建使用的eventloop对象"
 				},
 				{
-					"line": 3250,
+					"line": 3251,
 					"column": 0,
 					"label": "socket绑定-监听服务端口"
 				},
 				{
-					"line": 3284,
+					"line": 3285,
 					"column": 0,
 					"label": "真正创建db对象"
 				},
 				{
-					"line": 3353,
+					"line": 3354,
 					"column": 0,
 					"label": "创建后台定时任务"
 				},
 				{
-					"line": 3360,
+					"line": 3361,
 					"column": 0,
 					"label": "socket-注册AcceptHandler"
 				},
 				{
-					"line": 3407,
+					"line": 3408,
 					"column": 0,
 					"label": "cluster初始化"
 				},
 				{
-					"line": 3411,
+					"line": 3412,
 					"column": 0,
 					"label": "服务器启动-慢日志"
 				},
 				{
-					"line": 3412,
+					"line": 3413,
 					"column": 0,
 					"label": "延迟监控"
 				},
 				{
-					"line": 3426,
+					"line": 3427,
 					"column": 0,
 					"label": "初始化io-多线程io"
 				},
 				{
-					"line": 3501,
+					"line": 3502,
 					"column": 0,
 					"label": "初始化-注入redis命令"
 				},
 				{
-					"line": 4041,
+					"line": 4042,
 					"column": 0,
 					"label": "执行客户端命令-入口"
 				},
 				{
-					"line": 4139,
+					"line": 4140,
 					"column": 0,
 					"label": "cluster转发命令"
 				},
 				{
-					"line": 6271,
+					"line": 6272,
 					"column": 0,
 					"label": "服务器启动-主入口"
 				},
 				{
-					"line": 6358,
+					"line": 6359,
 					"column": 0,
 					"label": "服务器启动-哨兵初始化"
 				},
 				{
-					"line": 6449,
+					"line": 6450,
 					"column": 0,
 					"label": "服务器启动-初始化服务器！！！"
 				},
 				{
-					"line": 6527,
+					"line": 6528,
 					"column": 0,
 					"label": "服务执行-循环eventloop"
 				}
@@ -274,27 +279,27 @@
 			"path": "src/t_string.c",
 			"bookmarks": [
 				{
-					"line": 264,
+					"line": 268,
 					"column": 0,
 					"label": "set命令"
 				},
 				{
-					"line": 308,
+					"line": 312,
 					"column": 0,
 					"label": "get命令"
 				},
 				{
-					"line": 422,
+					"line": 426,
 					"column": 0,
 					"label": "getset命令"
 				},
 				{
-					"line": 590,
+					"line": 594,
 					"column": 0,
 					"label": "自增自减命令"
 				},
 				{
-					"line": 689,
+					"line": 693,
 					"column": 0,
 					"label": "string append命令"
 				}
@@ -304,42 +309,42 @@
 			"path": "src/db.c",
 			"bookmarks": [
 				{
-					"line": 64,
+					"line": 68,
 					"column": 0,
 					"label": "真正do查找key的val"
 				},
 				{
-					"line": 108,
+					"line": 116,
 					"column": 0,
 					"label": "验证过期、获取key"
 				},
 				{
-					"line": 182,
+					"line": 190,
 					"column": 0,
 					"label": "查找key"
 				},
 				{
-					"line": 203,
+					"line": 212,
 					"column": 0,
 					"label": "cluster的addkey"
 				},
 				{
-					"line": 336,
+					"line": 345,
 					"column": 0,
 					"label": "触发cluster过期删除key"
 				},
 				{
-					"line": 766,
+					"line": 775,
 					"column": 0,
 					"label": "key命令"
 				},
 				{
-					"line": 1061,
+					"line": 1070,
 					"column": 0,
 					"label": "scan命令"
 				},
 				{
-					"line": 1526,
+					"line": 1542,
 					"column": 0,
 					"label": "判断key过期"
 				}
@@ -354,12 +359,12 @@
 					"label": "_dictExpand- 创建扩容数组"
 				},
 				{
-					"line": 1022,
+					"line": 1029,
 					"column": 0,
 					"label": "触发扩容"
 				},
 				{
-					"line": 1062,
+					"line": 1069,
 					"column": 0,
 					"label": "扩容大小"
 				}
@@ -424,39 +429,59 @@
 					"label": "hashTypeTryConversion-把ziplist编码转成ht的入口"
 				},
 				{
-					"line": 206,
+					"line": 75,
+					"column": 0,
+					"label": "ziplist中找key的entry"
+				},
+				{
+					"line": 208,
 					"column": 0,
 					"label": "hashTypeSet-对hash对象set"
 				},
 				{
-					"line": 248,
+					"line": 250,
 					"column": 0,
 					"label": "编码变为ht-新增后，长度大于512"
 				},
 				{
-					"line": 267,
+					"line": 269,
 					"column": 0,
 					"label": "ht-新增，key、value都是sds"
 				},
 				{
-					"line": 476,
+					"line": 478,
 					"column": 0,
 					"label": "key不存在，创建key的hash对象"
 				},
 				{
-					"line": 484,
+					"line": 486,
 					"column": 0,
 					"label": "hashTypeConvertZiplist-ziplist转ht"
 				},
 				{
-					"line": 682,
+					"line": 684,
 					"column": 0,
 					"label": "hset命令"
 				},
 				{
-					"line": 694,
+					"line": 696,
 					"column": 0,
 					"label": "hset-写set前可能先转换编码为ht"
+				},
+				{
+					"line": 812,
+					"column": 0,
+					"label": "hash-ziplist查找key"
+				},
+				{
+					"line": 828,
+					"column": 0,
+					"label": "hash-常规ht返回key"
+				},
+				{
+					"line": 860,
+					"column": 0,
+					"label": "hmget实现批量获取效果"
 				}
 			]
 		},
@@ -494,22 +519,22 @@
 					"label": "对ziplist操作删除"
 				},
 				{
-					"line": 1039,
+					"line": 1040,
 					"column": 0,
 					"label": "ziplist insert插入"
 				},
 				{
-					"line": 1442,
+					"line": 1443,
 					"column": 0,
 					"label": "ziplistGet-获取当前entry得内容"
 				},
 				{
-					"line": 1473,
+					"line": 1474,
 					"column": 0,
 					"label": "ziplistDelete-删除一个entry"
 				},
 				{
-					"line": 1496,
+					"line": 1497,
 					"column": 0,
 					"label": "ziplistReplace-更换内容"
 				}
@@ -519,7 +544,7 @@
 			"path": "src/evict.c",
 			"bookmarks": [
 				{
-					"line": 330,
+					"line": 353,
 					"column": 0,
 					"label": "释放无用内存"
 				}
@@ -589,117 +614,117 @@
 					"label": "skiplist-新增节点"
 				},
 				{
-					"line": 274,
+					"line": 277,
 					"column": 0,
 					"label": "skiplist-删除节点"
 				},
 				{
-					"line": 352,
+					"line": 355,
 					"column": 0,
 					"label": "skiplist-更新分数"
 				},
 				{
-					"line": 385,
+					"line": 388,
 					"column": 0,
 					"label": "更新分数会根据原节点在头尾来判断是否需要移动节点"
 				},
 				{
-					"line": 395,
+					"line": 398,
 					"column": 0,
 					"label": "更新分数要移动节点，需要先删再加"
 				},
 				{
-					"line": 618,
+					"line": 621,
 					"column": 0,
 					"label": "关键--skiplist计算元素排名"
 				},
 				{
-					"line": 1532,
+					"line": 1535,
 					"column": 0,
 					"label": "ziplist-更新分数"
 				},
 				{
-					"line": 1541,
+					"line": 1544,
 					"column": 0,
 					"label": "ziplist-新增元素"
 				},
 				{
-					"line": 1602,
+					"line": 1605,
 					"column": 0,
 					"label": "zadd-skiplist更新分数"
 				},
 				{
-					"line": 1610,
+					"line": 1613,
 					"column": 0,
 					"label": "zadd-skiplist新增"
 				},
 				{
-					"line": 1709,
+					"line": 1712,
 					"column": 0,
 					"label": "ziplist-元素rank排名"
 				},
 				{
-					"line": 1740,
+					"line": 1743,
 					"column": 0,
 					"label": "skiplist-元素rank排名"
 				},
 				{
-					"line": 2012,
+					"line": 2015,
 					"column": 0,
 					"label": "关键--新建set选择set的编码"
 				},
 				{
-					"line": 2063,
+					"line": 2066,
 					"column": 0,
 					"label": "命令-zadd"
 				},
 				{
-					"line": 2066,
+					"line": 2069,
 					"column": 0,
 					"label": "命令-zincrby-自增成员分数"
 				},
 				{
-					"line": 2072,
+					"line": 2075,
 					"column": 0,
 					"label": "命令-zrem-移除成员（可多个）"
 				},
 				{
-					"line": 2084,
+					"line": 2087,
 					"column": 0,
 					"label": "zrem中如果删除后，zset空会移除key"
 				},
 				{
-					"line": 2901,
+					"line": 2904,
 					"column": 0,
 					"label": "关键-zunion、inter、diff命令都是skiplist"
 				},
 				{
-					"line": 3385,
+					"line": 3388,
 					"column": 0,
 					"label": "命令-ZRANGE-获取指定下标的元素"
 				},
 				{
-					"line": 3546,
+					"line": 3549,
 					"column": 0,
 					"label": "命令-ZCOUNT-统计分数区间数量"
 				},
 				{
-					"line": 3621,
+					"line": 3624,
 					"column": 0,
 					"label": "skiplist统计区间直接获取头尾相减"
 				},
 				{
-					"line": 4009,
+					"line": 4012,
 					"column": 0,
 					"label": "命令-ZCARD-获取set数量"
 				},
 				{
-					"line": 4019,
+					"line": 4022,
 					"column": 0,
 					"label": "命令-zscore- 获取单个分数"
 				},
 				{
-					"line": 4078,
+					"line": 4081,
 					"column": 0,
 					"label": "命令-zrank-获取排名"
 				}

@@ -52,7 +52,7 @@ typedef struct dictEntry {
     union {
         void *val; // 指针
         uint64_t u64;
-        int64_t s64;
+        int64_t s64;// 用于存放时间戳
         double d;
     } v;// val:联合体，8位，代表可能使用指针，or数字
     struct dictEntry *next;// 下一项的指针，8位

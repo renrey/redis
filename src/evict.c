@@ -78,7 +78,9 @@ unsigned int getLRUClock(void) {
  * precomputed value, otherwise we need to resort to a system call. */
 unsigned int LRU_CLOCK(void) {
     unsigned int lruclock;
-    if (1000/server.hz <= LRU_CLOCK_RESOLUTION) {
+    // hz默认10
+    // 默认1s100次
+    if (1000/server.hz <= LRU_CLOCK_RESOLUTION) {// 默认，使用后台认为更新的
         atomicGet(server.lruclock,lruclock);
     } else {
         lruclock = getLRUClock();
@@ -90,9 +92,10 @@ unsigned int LRU_CLOCK(void) {
  * requested, using an approximated LRU algorithm. */
 unsigned long long estimateObjectIdleTime(robj *o) {
     unsigned long long lruclock = LRU_CLOCK();
-    if (lruclock >= o->lru) {
+    if (lruclock >= o->lru) {// 大于，一般应该大于
+        // 返回*1000
         return (lruclock - o->lru) * LRU_CLOCK_RESOLUTION;
-    } else {
+    } else {// 当前小于o上的
         return (lruclock + (LRU_CLOCK_MAX - o->lru)) *
                     LRU_CLOCK_RESOLUTION;
     }
@@ -146,7 +149,9 @@ void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evic
     int j, k, count;
     dictEntry *samples[server.maxmemory_samples];
 
+    // 目标拿5个key
     count = dictGetSomeKeys(sampledict,samples,server.maxmemory_samples);
+    // 遍历拿到的key
     for (j = 0; j < count; j++) {
         unsigned long long idle;
         sds key;
@@ -159,9 +164,11 @@ void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evic
         /* If the dictionary we are sampling from is not the main
          * dictionary (but the expires one) we need to lookup the key
          * again in the key dictionary to obtain the value object. */
+        // 非ttl策略拿val
+        // -》即ttl实现不用val
         if (server.maxmemory_policy != MAXMEMORY_VOLATILE_TTL) {
             if (sampledict != keydict) de = dictFind(keydict, key);
-            o = dictGetVal(de);
+            o = dictGetVal(de);// 拿到val
         }
 
         /* Calculate the idle time according to the policy. This is called
@@ -189,34 +196,44 @@ void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evic
          * First, find the first empty bucket or the first populated
          * bucket that has an idle time smaller than our idle time. */
         k = 0;
+        // 把k遍历到小于idle的最后1个元素后面
         while (k < EVPOOL_SIZE &&
                pool[k].key &&
                pool[k].idle < idle) k++;
         if (k == 0 && pool[EVPOOL_SIZE-1].key != NULL) {
+            // k=0(无小于idle的)
+            // 当前pool已满且无小于idle的-》无需插入
             /* Can't insert if the element is < the worst element we have
              * and there are no empty buckets. */
             continue;
         } else if (k < EVPOOL_SIZE && pool[k].key == NULL) {
+            // pool中有空白位置可插入 -》k插入位置->直接插入
             /* Inserting into empty position. No setup needed before insert. */
         } else {
             /* Inserting in the middle. Now k points to the first element
              * greater than the element to insert.  */
-            if (pool[EVPOOL_SIZE-1].key == NULL) {
+            // 这里其实代表k已有元素
+            // 未满且k已有元素-》把k原来的移后
+            if (pool[EVPOOL_SIZE-1].key == NULL) {// 非满-》k有元素不能直接插入
                 /* Free space on the right? Insert at k shifting
                  * all the elements from k to end to the right. */
 
                 /* Save SDS before overwriting. */
                 sds cached = pool[EVPOOL_SIZE-1].cached;
+                // 把k位置后全都移后1个位置
                 memmove(pool+k+1,pool+k,
                     sizeof(pool[0])*(EVPOOL_SIZE-k-1));
-                pool[k].cached = cached;
+                pool[k].cached = cached;// k变空？
             } else {
+                // 已满，但是有小于idle（跟第1个条件相反的）-》不能通过移动直接完成
+                // 目标插入到k-1
                 /* No free space on right? Insert at k-1 */
                 k--;
                 /* Shift all elements on the left of k (included) to the
                  * left, so we discard the element with smaller idle time. */
                 sds cached = pool[0].cached; /* Save SDS before overwriting. */
-                if (pool[0].key != pool[0].cached) sdsfree(pool[0].key);
+                if (pool[0].key != pool[0].cached) sdsfree(pool[0].key);// 释放第一个？
+                // 第二个到k的都前移动1个位置-》k-1
                 memmove(pool,pool+1,sizeof(pool[0])*k);
                 pool[k].cached = cached;
             }
@@ -226,6 +243,7 @@ void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evic
          * because allocating and deallocating this object is costly
          * (according to the profiler, not my fantasy. Remember:
          * premature optimization bla bla bla. */
+         // 把key写入到pool的k位置
         int klen = sdslen(key);
         if (klen > EVPOOL_CACHED_SDS_SIZE) {
             pool[k].key = sdsdup(key);
@@ -316,10 +334,15 @@ uint8_t LFULogIncr(uint8_t counter) {
  * to fit: as we check for the candidate, we incrementally decrement the
  * counter of the scanned objects if needed. */
 unsigned long LFUDecrAndReturn(robj *o) {
+    // 获取上次使用时间
     unsigned long ldt = o->lru >> 8;
+    // 获取最新计数器值
     unsigned long counter = o->lru & 255;
+    //lfu_decay_time默认1，需要判断
+    // 是否超过1分钟
     unsigned long num_periods = server.lfu_decay_time ? LFUTimeElapsed(ldt) / server.lfu_decay_time : 0;
-    if (num_periods)
+    // 超过周期,
+    if (num_periods)// 周期>count即归0，不如counter-num_periods
         counter = (num_periods > counter) ? 0 : counter - num_periods;
     return counter;
 }
@@ -565,6 +588,7 @@ int performEvictions(void) {
                     db = server.db+i;
                     dict = (server.maxmemory_policy & MAXMEMORY_FLAG_ALLKEYS) ?
                             db->dict : db->expires;
+                    // 往evictionPool注入元素    
                     if ((keys = dictSize(dict)) != 0) {
                         evictionPoolPopulate(i, dict, db->dict, pool);
                         total_keys += keys;
@@ -573,10 +597,12 @@ int performEvictions(void) {
                 if (!total_keys) break; /* No keys to evict. */
 
                 /* Go backward from best to worst element to evict. */
+                // 遍历evictionPool，直到里面key是在ht有元素的
                 for (k = EVPOOL_SIZE-1; k >= 0; k--) {
                     if (pool[k].key == NULL) continue;
                     bestdbid = pool[k].dbid;
 
+                    // 从对应的ht获取当前pool的key对应 entry
                     if (server.maxmemory_policy & MAXMEMORY_FLAG_ALLKEYS) {
                         de = dictFind(server.db[pool[k].dbid].dict,
                             pool[k].key);
@@ -586,6 +612,7 @@ int performEvictions(void) {
                     }
 
                     /* Remove the entry from the pool. */
+                    // 释放pool对应k的内存
                     if (pool[k].key != pool[k].cached)
                         sdsfree(pool[k].key);
                     pool[k].key = NULL;
@@ -594,9 +621,11 @@ int performEvictions(void) {
                     /* If the key exists, is our pick. Otherwise it is
                      * a ghost and we need to try the next element. */
                     if (de) {
+                        // 拿回k对应key的具体对象
                         bestkey = dictGetKey(de);
                         break;
                     } else {
+                        // 所以实际就是遍历到当前pool中key在ht中有元素，才会终止
                         /* Ghost... Iterate again. */
                     }
                 }

@@ -52,8 +52,12 @@ int keyIsExpired(redisDb *db, robj *key);
  * Firstly, decrement the counter if the decrement time is reached.
  * Then logarithmically increment the counter, and update the access time. */
 void updateLFU(robj *val) {
+    // 获取val的计数器
     unsigned long counter = LFUDecrAndReturn(val);
+    // 计数器+
     counter = LFULogIncr(counter);
+    // 新计数值与最新使用时间都更新到lru中
+    // 即lfu策略下，robj的lru = 前 16bit（最后时间）+后8bit计数
     val->lru = (LFUGetTimeInMinutes()<<8) | counter;
 }
 
@@ -69,10 +73,14 @@ robj *lookupKey(redisDb *db, robj *key, int flags) {
         /* Update the access time for the ageing algorithm.
          * Don't do it if we have a saving child, as this will trigger
          * a copy on write madness. */
+         //hasActiveChildProcess：进行异步导出备份
+         // 没在备份，进行lru、lfu更新-》时间信息更新
         if (!hasActiveChildProcess() && !(flags & LOOKUP_NOTOUCH)){
+            // lfu
             if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
                 updateLFU(val);
             } else {
+                // lru：直接更新robj的lru-》当前时间？
                 val->lru = LRU_CLOCK();
             }
         }
@@ -196,7 +204,8 @@ robj *lookupKeyWriteOrReply(client *c, robj *key, robj *reply) {
  *
  * The program is aborted if the key already exists. */
 void dbAdd(redisDb *db, robj *key, robj *val) {
-    sds copy = sdsdup(key->ptr);
+    sds copy = sdsdup(key->ptr);// 拷贝新的sds对象
+    // 放入dict
     int retval = dictAdd(db->dict, copy, val);
 
     serverAssertWithInfo(NULL,key,retval == DICT_OK);
@@ -1447,11 +1456,18 @@ void setExpire(client *c, redisDb *db, robj *key, long long when) {
     dictEntry *kde, *de;
 
     /* Reuse the sds from the main dict in the expire dict */
-    kde = dictFind(db->dict,key->ptr);
+    kde = dictFind(db->dict,key->ptr);// 在db的dict查找，获取对应的dict entry（代表后续直接服用entry）
     serverAssertWithInfo(NULL,key,kde != NULL);
+    // 利用dictentry复用key的sds
+    // 在d把的expires（dict）查找，不存在则新增
     de = dictAddOrFind(db->expires,dictGetKey(kde));
+
+    // 此时expires中已有这个key
+    // 把ttl更新到val （s64）
     dictSetSignedIntegerVal(de,when);
 
+
+    // 主从同步相关
     int writable_slave = server.masterhost && server.repl_slave_ro == 0;
     if (c && writable_slave && !(c->flags & CLIENT_MASTER))
         rememberSlaveKeyWithExpire(db,key);
@@ -1580,6 +1596,7 @@ int keyIsExpired(redisDb *db, robj *key) {
  * The return value of the function is 0 if the key is still valid,
  * otherwise the function returns 1 if the key is expired. */
 int expireIfNeeded(redisDb *db, robj *key) {
+    // 主要判断当前时间是否大于ttl时间-》过期
     if (!keyIsExpired(db,key)) return 0;
 
     /* If we are running in the context of a slave, instead of

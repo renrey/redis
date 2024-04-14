@@ -70,8 +70,9 @@ int hashTypeGetFromZiplist(robj *o, sds field,
     serverAssert(o->encoding == OBJ_ENCODING_ZIPLIST);
 
     zl = o->ptr;
-    fptr = ziplistIndex(zl, ZIPLIST_HEAD);
+    fptr = ziplistIndex(zl, ZIPLIST_HEAD);// 获取ziplist空间指针
     if (fptr != NULL) {
+        // 实际就是在ziplist上遍历比较entry
         fptr = ziplistFind(zl, fptr, (unsigned char*)field, sdslen(field), 1);
         if (fptr != NULL) {
             /* Grab pointer to the value (fptr points to the field) */
@@ -80,6 +81,7 @@ int hashTypeGetFromZiplist(robj *o, sds field,
         }
     }
 
+    // 在ziplist空间找到代表key的entry，获取value的entry-》即这个key entry后一个
     if (vptr != NULL) {
         ret = ziplistGet(vptr, vstr, vlen, vll);
         serverAssert(ret);
@@ -97,7 +99,7 @@ sds hashTypeGetFromHashTable(robj *o, sds field) {
 
     serverAssert(o->encoding == OBJ_ENCODING_HT);
 
-    de = dictFind(o->ptr, field);
+    de = dictFind(o->ptr, field);// 常规ht查找
     if (de == NULL) return NULL;
     return dictGetVal(de);
 }
@@ -835,12 +837,13 @@ static void addHashFieldToReply(client *c, robj *o, sds field) {
     }
 }
 
+// hget
 void hgetCommand(client *c) {
     robj *o;
 
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.null[c->resp])) == NULL ||
         checkType(c,o,OBJ_HASH)) return;
-
+    // 查到后返回key    
     addHashFieldToReply(c, o, c->argv[2]->ptr);
 }
 
@@ -854,6 +857,7 @@ void hmgetCommand(client *c) {
     if (checkType(c,o,OBJ_HASH)) return;
 
     addReplyArrayLen(c, c->argc-2);
+    // hmget批量实际-》 逐个get 
     for (i = 2; i < c->argc; i++) {
         addHashFieldToReply(c, o, c->argv[i]->ptr);
     }

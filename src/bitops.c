@@ -479,11 +479,13 @@ int getBitfieldTypeFromArgument(client *c, robj *o, int *sign, int *bits) {
  * returned. Otherwise if the key holds a wrong type NULL is returned and
  * an error is sent to the client. */
 robj *lookupStringForBitCommand(client *c, uint64_t maxbit) {
-    size_t byte = maxbit >> 3;
+    size_t byte = maxbit >> 3;// 对bit位/8得到多少字节
     robj *o = lookupKeyWrite(c->db,c->argv[1]);
     if (checkType(c,o,OBJ_STRING)) return NULL;
 
     if (o == NULL) {
+        // 不存在，创建sds String，初始长度 = 给bit下标对应字节+1
+        // 因为基础单位是字节
         o = createObject(OBJ_STRING,sdsnewlen(NULL, byte+1));
         dbAdd(c->db,c->argv[1],o);
     } else {
@@ -545,18 +547,29 @@ void setbitCommand(client *c) {
         return;
     }
 
+    // 查找key，不存在会创建
     if ((o = lookupStringForBitCommand(c,bitoffset)) == NULL) return;
 
+    // o -》key的具体string
     /* Get current values */
-    byte = bitoffset >> 3;
-    byteval = ((uint8_t*)o->ptr)[byte];
+    byte = bitoffset >> 3;// 转字节位置，所以也可以想成是segment，前n-3位
+    byteval = ((uint8_t*)o->ptr)[byte];//拿到sds中具体字节
+
+    // 0x7-》111，bitoffset & 0x7-》保留后3bit，而十进制计算后，0<=bit<=7
+    // 大概意思就是前面bit就是segment概念，具体找的是segment中8个bit位置
+    // 也就是目标位置在segment中下标
     bit = 7 - (bitoffset & 0x7);
+
+    // &计算后的值-》把目标变成1，但其他变0
     bitval = byteval & (1 << bit);
 
     /* Update byte with new bit value and return original value */
+    // 其他bit值保留，目标位置=0
     byteval &= ~(1 << bit);
+
+    // 即用bit位1（其他0）+ 其他位保留（bit位=0） 实现把bit位变1.。。
     byteval |= ((on & 0x1) << bit);
-    ((uint8_t*)o->ptr)[byte] = byteval;
+    ((uint8_t*)o->ptr)[byte] = byteval;// 更新byte数组
     signalModifiedKey(c,c->db,c->argv[1]);
     notifyKeyspaceEvent(NOTIFY_STRING,"setbit",c->argv[1],c->db->id);
     server.dirty++;

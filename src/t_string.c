@@ -80,7 +80,8 @@ static int checkStringLength(client *c, long long size, long long append) {
 
 void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire, int unit, robj *ok_reply, robj *abort_reply) {
     long long milliseconds = 0, when = 0; /* initialized to avoid any harmness warning */
-    // 参数需要存在，已过期判断
+    // ttl参数存在，已过期判断
+    // 计算实际剩余ttl时间
     if (expire) {
         if (getLongLongFromObjectOrReply(c, expire, &milliseconds, NULL) != C_OK)
             return;
@@ -93,6 +94,7 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
         when = milliseconds;
         if ((flags & OBJ_PX) || (flags & OBJ_EX))
             when += mstime();
+        // ttl不足，直接返回错，不用继续执行
         if (when <= 0) {
             /* Overflow detected. */
             addReplyErrorFormat(c, "invalid expire time in %s", c->cmd->name);
@@ -115,7 +117,9 @@ void setGenericCommand(client *c, int flags, robj *key, robj *val, robj *expire,
     genericSetKey(c,c->db,key, val,flags & OBJ_KEEPTTL,1);
     server.dirty++;// 修改+1
     notifyKeyspaceEvent(NOTIFY_STRING,"set",key,c->db->id);
+    // 有ttl过期参数
     if (expire) {
+        // 放入db的expires并更新新的ttl
         setExpire(c,c->db,key,when);
         notifyKeyspaceEvent(NOTIFY_GENERIC,"expire",key,c->db->id);
 

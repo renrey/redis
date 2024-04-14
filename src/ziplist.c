@@ -924,6 +924,7 @@ unsigned char *__ziplistDelete(unsigned char *zl, unsigned char *p, unsigned int
     
     // 得到需要被删链表后 ，存活的连续entry头
     // 从目标p开始向后扫描，最多n个
+    // 整个可保证批量删除中，最后保留的空间
     for (i = 0; p[0] != ZIP_END && i < num; i++) {
         p += zipRawEntryLengthSafe(zl, zlbytes, p);// p移动到下个entry，代表原p是要被删除的,当前p是存活entry的后
         deleted++;// 需要删除entry数+1

@@ -353,10 +353,12 @@ dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing)
     dictEntry *entry;
     dictht *ht;
 
+    // 正在rehash
     if (dictIsRehashing(d)) _dictRehashStep(d);
 
     /* Get the index of the new element, or -1 if
      * the element already exists. */
+     // 找到key所在的slot
     if ((index = _dictKeyIndex(d, key, dictHashKey(d,key), existing)) == -1)
         return NULL;
 
@@ -364,13 +366,17 @@ dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing)
      * Insert the element in top, with the assumption that in a database
      * system it is more likely that recently added entries are accessed
      * more frequently. */
+
+     // 通过rehash，选择使用的ht
     ht = dictIsRehashing(d) ? &d->ht[1] : &d->ht[0];
     entry = zmalloc(sizeof(*entry));
     entry->next = ht->table[index];
+    // 直接头插入entry，减少每次新增需要遍历
     ht->table[index] = entry;
     ht->used++;
 
     /* Set the hash entry fields. */
+    // 更新entry属性
     dictSetKey(d, entry, key);
     return entry;
 }
@@ -541,8 +547,9 @@ dictEntry *dictFind(dict *d, const void *key)
     if (dictIsRehashing(d)) _dictRehashStep(d);
     // key的hash
     h = dictHashKey(d, key);
-    // 遍历table？
+    // 遍历table（适配rehash中 -》2个table）
     for (table = 0; table <= 1; table++) {
+        // 寻址slot
         idx = h & d->ht[table].sizemask;
         he = d->ht[table].table[idx];
         // 遍历链表
@@ -551,7 +558,7 @@ dictEntry *dictFind(dict *d, const void *key)
                 return he;
             he = he->next;
         }
-        if (!dictIsRehashing(d)) return NULL;
+        if (!dictIsRehashing(d)) return NULL;// 没有正在rehash，找不到返回NULL
     }
     return NULL;
 }
@@ -1088,20 +1095,23 @@ static long _dictKeyIndex(dict *d, const void *key, uint64_t hash, dictEntry **e
     if (existing) *existing = NULL;
 
     /* Expand the hash table if needed */
+    // 判断是否需要扩容，需要更新标志
     if (_dictExpandIfNeeded(d) == DICT_ERR)
         return -1;
-    for (table = 0; table <= 1; table++) {
+    for (table = 0; table <= 1; table++) {// 适配rehash
         idx = hash & d->ht[table].sizemask;
         /* Search if this slot does not already contain the given key */
+        // 在当前ht的slot 链表
         he = d->ht[table].table[idx];
         while(he) {
+            // 遍历链表，查找
             if (key==he->key || dictCompareKeys(d, key, he->key)) {
                 if (existing) *existing = he;
                 return -1;
             }
             he = he->next;
         }
-        if (!dictIsRehashing(d)) break;
+        if (!dictIsRehashing(d)) break;// 没有rehash，1次就完了（没有2个ht）
     }
     return idx;
 }

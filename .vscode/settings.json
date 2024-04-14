@@ -34,5 +34,6 @@
             "test*": true
       },
       "C_Cpp.intelliSenseEngine": "disabled",
-      "C_Cpp.default.intelliSenseMode": "macos-clang-x64"
+      "C_Cpp.default.intelliSenseMode": "macos-clang-x64",
+      "cmake.sourceDirectory": "/Users/rey/Documents/code/redis/deps/hiredis"
 }

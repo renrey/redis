@@ -528,9 +528,10 @@ int quicklistPushHead(quicklist *quicklist, void *value, size_t sz) {
     assert(sz < UINT32_MAX); /* TODO: add support for quicklist nodes that are sds encoded (not zipped) */
     // _quicklistNodeAllowInsert是true 
     // 里面算插入后的大小
+    // 实际判断插入后
     if (likely(
             _quicklistNodeAllowInsert(quicklist->head, quicklist->fill, sz))) {
-
+        // 允许插入head的ziplist -》毕竟从头push，肯定关注head的        
         // 1. 插入到当前的head的ziplist        
         // 2. 这里会更新head的zl =》即返回的是新的头节点，里面使用头插法       
         quicklist->head->zl =
@@ -544,12 +545,14 @@ int quicklistPushHead(quicklist *quicklist, void *value, size_t sz) {
 
         quicklistNode *node = quicklistCreateNode();// 新建节点
         // 1. 先建个ziplist
-        // 2. 再ziplistPush把value（字符数组的指针）插入到ziplist
+        // 2. 再ziplistPush把value（字符数组的指针）插入到新ziplist
         node->zl = ziplistPush(ziplistNew(), value, sz, ZIPLIST_HEAD);
-
-        // 3.更新
+        // 此时新ziplist只有当前值
+        // 3.更新，插入到链表中
         quicklistNodeUpdateSz(node);
         _quicklistInsertNodeBefore(quicklist, quicklist->head, node);
+
+        // 总结：判断不能插入原head的ziplist，新建ziplist存放当前v（不会迁移其他的进来），加入到链表中
     }
     // 统计+1
     quicklist->count++;
@@ -1052,15 +1055,16 @@ int quicklistDelRange(quicklist *quicklist, const long start,
     quicklistNode *node = entry.node;
 
     /* iterate over next nodes until everything is deleted. */
-    while (extent) {
+    while (extent) {// 遍历直到无需要删除元素（够了or无元素）
         quicklistNode *next = node->next;
 
         unsigned long del;
         int delete_entire_node = 0;
+        // 计算这个node（ziplist）需要删除数据的数量
         if (entry.offset == 0 && extent >= node->count) {
             /* If we are deleting more than the count of this node, we
              * can just delete the entire node without ziplist math. */
-            delete_entire_node = 1;
+            delete_entire_node = 1;// 整个ziplist都需被删掉-》删除ziplist
             del = node->count;
         } else if (entry.offset >= 0 && extent + entry.offset >= node->count) {
             /* If deleting more nodes after this one, calculate delete based
@@ -1090,8 +1094,10 @@ int quicklistDelRange(quicklist *quicklist, const long start,
           extent, del, entry.offset, delete_entire_node, node->count);
 
         if (delete_entire_node) {
+            // 需要删除ziplist
             __quicklistDelNode(quicklist, node);
         } else {
+            // 删除ziplist中元素
             quicklistDecompressNodeForUse(node);
             node->zl = ziplistDeleteRange(node->zl, entry.offset, del);
             quicklistNodeUpdateSz(node);

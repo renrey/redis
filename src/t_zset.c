@@ -160,7 +160,7 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
              // 循环条件总结：x 在当前level链表且有next节点，入参的元素可以排在x的next（在这个level链表）前面
              // 比较就是2个：1. score 2. score相同比sds
 
-            // 这个累加实际是算当前节点在当前层 
+            // 当前层间隔遍历相加，得到当前节点真实的排名 -》 当前节点在当前层 
             rank[i] += x->level[i].span;// 当前level的rank 加上x在当前level的span
 
             x = x->level[i].forward; // x指针：next（在这个level链表），即上面被比较的next
@@ -181,6 +181,9 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
         // 下次循环开始，x还是这里这个在入参前插入位置，
         // 这样利用了跳表，不会在每层重新遍历，直接从上一层的插入节点位置开始，而这个遍历是从上到下
         // 上层的节点肯定在下层，保证每次用x在下层都是有的
+
+        // 简单：从顶层遍历，找到每次它的前一个节点（《=它的最大节点，也就是插入位置）
+        // 并且利用链表特性（上层的节点在下层肯定有）来减少下层遍历次数-》从上层插入节点的当前层开始遍历
     }
     /* we assume the element is not already inside, since we allow duplicated
      * scores, reinserting the same element should never happen since the
