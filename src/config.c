@@ -510,6 +510,7 @@ void loadServerConfigFromString(char *config) {
             loadServerConfig(argv[1], 0, NULL);
         } else if ((!strcasecmp(argv[0],"slaveof") ||
                     !strcasecmp(argv[0],"replicaof")) && argc == 3) {
+            // 设置主从master信息
             slaveof_linenum = linenum;
             sdsfree(server.masterhost);
             if (!strcasecmp(argv[1], "no") && !strcasecmp(argv[2], "one")) {

@@ -92,10 +92,12 @@ unsigned int LRU_CLOCK(void) {
  * requested, using an approximated LRU algorithm. */
 unsigned long long estimateObjectIdleTime(robj *o) {
     unsigned long long lruclock = LRU_CLOCK();
-    if (lruclock >= o->lru) {// 大于，一般应该大于
+    if (lruclock >= o->lru) {// 大于，一般应该大于-》前面
         // 返回*1000
+        // 当前时间-最后lru时间-》与当前时间差距-》越大越老
         return (lruclock - o->lru) * LRU_CLOCK_RESOLUTION;
-    } else {// 当前小于o上的
+    } else {// 当前小于o上的->新
+        // 当前时间+（max-lru） -》越大越老，但肯定比上面的小
         return (lruclock + (LRU_CLOCK_MAX - o->lru)) *
                     LRU_CLOCK_RESOLUTION;
     }
@@ -151,7 +153,7 @@ void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evic
 
     // 目标拿5个key
     count = dictGetSomeKeys(sampledict,samples,server.maxmemory_samples);
-    // 遍历拿到的key
+    // 遍历拿到的key->根據當前key的idle放入pool
     for (j = 0; j < count; j++) {
         unsigned long long idle;
         sds key;
@@ -171,22 +173,30 @@ void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evic
             o = dictGetVal(de);// 拿到val
         }
 
+        // 計算當前key的分數
         /* Calculate the idle time according to the policy. This is called
          * idle just because the code initially handled LRU, but is in fact
          * just a score where an higher score means better candidate. */
         if (server.maxmemory_policy & MAXMEMORY_FLAG_LRU) {
-            idle = estimateObjectIdleTime(o);
+            // 使用robj上lru与当前时间的偏移量
+            // 淘汰應該是越老約淘汰
+            // idle越大，lru时间越老
+            idle = estimateObjectIdleTime(o);// 其實就是從robj中lru拿回最後使用時間
         } else if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
             /* When we use an LRU policy, we sort the keys by idle time
              * so that we expire keys starting from greater idle time.
-             * However when the policy is an LFU one, we have a frequency
+             * However when the policy is an LFU one, we ha ve a frequency
              * estimation, and we want to evict keys with lower frequency
              * first. So inside the pool we put objects using the inverted
              * frequency subtracting the actual frequency to the maximum
              * frequency of 255. */
-            idle = 255-LFUDecrAndReturn(o);
+            // LFUDecrAndReturn約大代表約頻繁 
+            // idle-> 越大越不頻繁-》淘汰
+            idle = 255-LFUDecrAndReturn(o);// 相反了，越大約被當作不頻繁
         } else if (server.maxmemory_policy == MAXMEMORY_VOLATILE_TTL) {
             /* In this case the sooner the expire the better. */
+            // 直接用MAX-過期時間點（val上的）
+            // idle越大，代表最早過期-》被淘汰
             idle = ULLONG_MAX - (long)dictGetVal(de);
         } else {
             serverPanic("Unknown eviction policy in evictionPoolPopulate()");
@@ -238,6 +248,7 @@ void evictionPoolPopulate(int dbid, dict *sampledict, dict *keydict, struct evic
                 pool[k].cached = cached;
             }
         }
+        // 就是把元素放入pool-》按照idle分顺序排序
 
         /* Try to reuse the cached SDS string allocated in the pool entry,
          * because allocating and deallocating this object is costly
@@ -306,19 +317,27 @@ unsigned long LFUGetTimeInMinutes(void) {
  * the current 16 bits minutes time) considering the time as wrapping
  * exactly once. */
 unsigned long LFUTimeElapsed(unsigned long ldt) {
+    // 返回當前時間的到min級別，s都不需要
     unsigned long now = LFUGetTimeInMinutes();
+    // 正常應該這個-> 當前時間比ldt大（新），ldt越大（新），結果約小，但是肯定正數
     if (now >= ldt) return now-ldt;
+    // 小的情況（應該就是并發進行中），但ldt越大（越新），這個會越小，甚至會到負數
     return 65535-ldt+now;
 }
 
 /* Logarithmically increment a counter. The greater is the current counter value
  * the less likely is that it gets really implemented. Saturate it at 255. */
 uint8_t LFULogIncr(uint8_t counter) {
-    if (counter == 255) return 255;
+    if (counter == 255) return 255;// 达到怎么都是255
+    // 随机值 ——》小于1的
     double r = (double)rand()/RAND_MAX;
+    // base = counter-5
     double baseval = counter - LFU_INIT_VAL;
-    if (baseval < 0) baseval = 0;
-    double p = 1.0/(baseval*server.lfu_log_factor+1);
+    if (baseval < 0) baseval = 0;// 原来小于5，base=0
+
+    //  1/（ base*因子（默认10） +1）
+    double p = 1.0/(baseval*server.lfu_log_factor+1);// 前5次内都是1（前5次能+1），后面越来越小
+    // 比随机值大，+1
     if (r < p) counter++;
     return counter;
 }
@@ -334,16 +353,19 @@ uint8_t LFULogIncr(uint8_t counter) {
  * to fit: as we check for the candidate, we incrementally decrement the
  * counter of the scanned objects if needed. */
 unsigned long LFUDecrAndReturn(robj *o) {
-    // 获取上次使用时间
+    // 获取上次使用时间()
     unsigned long ldt = o->lru >> 8;
     // 获取最新计数器值
     unsigned long counter = o->lru & 255;
     //lfu_decay_time默认1，需要判断
-    // 是否超过1分钟
+    // LFUTimeElapsed算最近lru差距（越小越新）
     unsigned long num_periods = server.lfu_decay_time ? LFUTimeElapsed(ldt) / server.lfu_decay_time : 0;
-    // 超过周期,
-    if (num_periods)// 周期>count即归0，不如counter-num_periods
+    // 正數代表在當前時間前
+    if (num_periods)// 周期長且count少，直接歸0，不然正常計數-周期（正數）-》部分糾正
         counter = (num_periods > counter) ? 0 : counter - num_periods;
+    // 也就是當前時間前的，一個長周期裏使用過少-》0 -》很久沒使用的，且較少使用
+    // 一個周期使用過多-》計數-周期-》周期越短計數被減的少，保證相同計數下，最近被點的分數
+    // 當前時間后，直接使用計數-》無需糾正 
     return counter;
 }
 
@@ -596,8 +618,10 @@ int performEvictions(void) {
                 }
                 if (!total_keys) break; /* No keys to evict. */
 
+                // 上面隨機選key，並根據策略給每個key算分，按順序放入到EVPOOL
+                // 下面就是通過evpool順序，從尾部（最高分）向前（就是沒成功，則前一個）淘汰
                 /* Go backward from best to worst element to evict. */
-                // 遍历evictionPool，直到里面key是在ht有元素的
+                // 從末尾遍历evictionPool，即idle分越高，越容易作爲淘汰目標
                 for (k = EVPOOL_SIZE-1; k >= 0; k--) {
                     if (pool[k].key == NULL) continue;
                     bestdbid = pool[k].dbid;

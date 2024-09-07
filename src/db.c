@@ -469,6 +469,7 @@ long long emptyDb(int dbnum, int flags, void(callback)(void*)) {
     signalFlushedDb(dbnum, async);
 
     /* Empty redis database structure. */
+    // 清理内存所有db
     removed = emptyDbStructure(server.db, dbnum, async, callback);
 
     /* Flush slots to keys map if enable cluster, we can flush entire
@@ -902,6 +903,7 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
 
             i += 2;
         } else if (!strcasecmp(c->argv[i]->ptr, "match") && j >= 2) {
+            // 正则匹配
             pat = c->argv[i+1]->ptr;
             patlen = sdslen(pat);
 
@@ -960,6 +962,7 @@ void scanGenericCommand(client *c, robj *o, unsigned long cursor) {
          * it is possible to fetch more data in a type-dependent way. */
         privdata[0] = keys;
         privdata[1] = o;
+        // 从cursor开始扫
         // 迭代，有个count与maxiterations做终止防止循环太久
         do {
             cursor = dictScan(ht, cursor, scanCallback, NULL, privdata);

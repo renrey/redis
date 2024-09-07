@@ -1462,12 +1462,13 @@ void scriptingInit(int setup) {
 /* Release resources related to Lua scripting.
  * This function is used in order to reset the scripting environment. */
 void scriptingRelease(int async) {
-    if (async)
+    // 清理lua_scripts
+    if (async)// 代表大对象可以异步清理
         freeLuaScriptsAsync(server.lua_scripts);
     else
         dictRelease(server.lua_scripts);
     server.lua_scripts_mem = 0;
-    lua_close(server.lua);
+    lua_close(server.lua);// 关闭lua客户端？
 }
 
 void scriptingReset(int async) {
@@ -1562,12 +1563,14 @@ sds luaCreateFunction(client *c, lua_State *lua, robj *body) {
     funcname[1] = '_';
     sha1hex(funcname+2,body->ptr,sdslen(body->ptr));
 
+// 生成sha，并在ht查找
     sds sha = sdsnewlen(funcname+2,40);
     if ((de = dictFind(server.lua_scripts,sha)) != NULL) {
         sdsfree(sha);
         return dictGetKey(de);
     }
 
+// 新增
     if (luaL_loadbuffer(lua,body->ptr,sdslen(body->ptr),"@user_script")) {
         if (c != NULL) {
             addReplyErrorFormat(c,
@@ -1586,11 +1589,13 @@ sds luaCreateFunction(client *c, lua_State *lua, robj *body) {
     /* We also save a SHA1 -> Original script map in a dictionary
      * so that we can replicate / write in the AOF all the
      * EVALSHA commands as EVAL using the original script. */
+
+     // 放入到本地lua_scripts，key=sha
     int retval = dictAdd(server.lua_scripts,sha,body);
     serverAssertWithInfo(c ? c : server.lua_client,NULL,retval == DICT_OK);
     server.lua_scripts_mem += sdsZmallocSize(sha) + getStringObjectSdsUsedMemory(body);
     incrRefCount(body);
-    return sha;
+    return sha;// 返回sha
 }
 
 /* This is the Lua script "count" hook that we use to detect scripts timeout. */
@@ -1689,16 +1694,18 @@ void evalGenericCommand(client *c, int evalsha) {
     funcname[0] = 'f';
     funcname[1] = '_';
     if (!evalsha) {
+        // 进行hash -》放入到funcname
         /* Hash the code if this is an EVAL call */
         sha1hex(funcname+2,c->argv[1]->ptr,sdslen(c->argv[1]->ptr));
     } else {
         /* We already have the SHA if it is an EVALSHA */
         int j;
-        char *sha = c->argv[1]->ptr;
+        char *sha = c->argv[1]->ptr;// 获取sha
 
         /* Convert to lowercase. We don't use tolower since the function
          * managed to always show up in the profiler output consuming
          * a non trivial amount of time. */
+         // 通过sha重新拼成函数命
         for (j = 0; j < 40; j++)
             funcname[j+2] = (sha[j] >= 'A' && sha[j] <= 'Z') ?
                 sha[j]+('a'-'A') : sha[j];
@@ -1708,6 +1715,7 @@ void evalGenericCommand(client *c, int evalsha) {
     /* Push the pcall error handler function on the stack. */
     lua_getglobal(lua, "__redis__err__handler");
 
+// 寻找funcname
     /* Try to lookup the Lua function */
     lua_getfield(lua, LUA_REGISTRYINDEX, funcname);
     if (lua_isnil(lua,-1)) {
@@ -1749,6 +1757,7 @@ void evalGenericCommand(client *c, int evalsha) {
     server.lua_time_start = getMonotonicUs();
     server.lua_time_snapshot = mstime();
     server.lua_kill = 0;
+    // 有限时执行（默认5s）
     if (server.lua_time_limit > 0 && ldb.active == 0) {
         lua_sethook(lua,luaMaskCountHook,LUA_MASKCOUNT,100000);
         delhook = 1;
@@ -1757,8 +1766,10 @@ void evalGenericCommand(client *c, int evalsha) {
         delhook = 1;
     }
 
+// lua‘客户端
     prepareLuaClient();
 
+// 执行
     /* At this point whether this script was never seen before or if it was
      * already defined, we can call it. We have zero arguments and expect
      * a single return value. */
@@ -1907,6 +1918,7 @@ NULL
         };
         addReplyHelp(c, help);
     } else if (c->argc >= 2 && !strcasecmp(c->argv[1]->ptr,"flush")) {
+        // flush清除 lua脚本map
         int async = 0;
         if (c->argc == 3 && !strcasecmp(c->argv[2]->ptr,"sync")) {
             async = 0;
@@ -1918,6 +1930,7 @@ NULL
             addReplyError(c,"SCRIPT FLUSH only support SYNC|ASYNC option");
             return;
         }
+        // 清理lua_scripts
         scriptingReset(async);
         addReply(c,shared.ok);
         replicationScriptCacheFlush();
@@ -1932,7 +1945,7 @@ NULL
             else
                 addReply(c,shared.czero);
         }
-    } else if (c->argc == 3 && !strcasecmp(c->argv[1]->ptr,"load")) {
+    } else if (c->argc == 3 && !strcasecmp(c->argv[1]->ptr,"load")) {// 放入脚本
         sds sha = luaCreateFunction(c,server.lua,c->argv[2]);
         if (sha == NULL) return; /* The error was sent by luaCreateFunction(). */
         addReplyBulkCBuffer(c,sha,40);

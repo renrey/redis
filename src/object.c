@@ -51,6 +51,7 @@ robj *createObject(int type, void *ptr) {
     if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {
         o->lru = (LFUGetTimeInMinutes()<<8) | LFU_INIT_VAL;
     } else {
+        // 其他下就是當前時間
         o->lru = LRU_CLOCK();
     }
     return o;
@@ -841,27 +842,36 @@ size_t objectComputeSize(robj *o, size_t sample_size) {
     struct dictEntry *de;
     size_t asize = 0, elesize = 0, samples = 0;
 
+
+// STRING类型内存计算
     if (o->type == OBJ_STRING) {
-        if(o->encoding == OBJ_ENCODING_INT) {
-            asize = sizeof(*o);
+        if(o->encoding == OBJ_ENCODING_INT) {// int
+            asize = sizeof(*o);// 直接sizeof robj
         } else if(o->encoding == OBJ_ENCODING_RAW) {
+            // raw：robj大小 + sds大小
             asize = sdsZmallocSize(o->ptr)+sizeof(*o);
         } else if(o->encoding == OBJ_ENCODING_EMBSTR) {
+            // embstr：sds+ robj +2
             asize = sdslen(o->ptr)+2+sizeof(*o);
         } else {
             serverPanic("Unknown string encoding");
         }
-    } else if (o->type == OBJ_LIST) {
+    } else if (o->type == OBJ_LIST) {// list
         if (o->encoding == OBJ_ENCODING_QUICKLIST) {
+            // 
             quicklist *ql = o->ptr;
             quicklistNode *node = ql->head;
+            // 总大小 = robj + quicklist
             asize = sizeof(*o)+sizeof(quicklist);
             do {
+                // 每个ziplist的大小：对应quicklistNode + ziplist大小
                 elesize += sizeof(quicklistNode)+ziplistBlobLen(node->zl);
-                samples++;
+                samples++;// 链表中ziplist数量
             } while ((node = node->next) && samples < sample_size);
+            // 总大小+=  所以ziplist的总大小*ziplist数/samples（遍历的ziplist样本）？
             asize += (double)elesize/samples*ql->len;
         } else if (o->encoding == OBJ_ENCODING_ZIPLIST) {
+            // 1 个ziplist的大小：对应quicklistNode + ziplist大小
             asize = sizeof(*o)+ziplistBlobLen(o->ptr);
         } else {
             serverPanic("Unknown list encoding");
@@ -869,16 +879,20 @@ size_t objectComputeSize(robj *o, size_t sample_size) {
     } else if (o->type == OBJ_SET) {
         if (o->encoding == OBJ_ENCODING_HT) {
             d = o->ptr;
+            // 迭代器
             di = dictGetIterator(d);
+            // 大小=robj + dict字段 + slot的数量* dictEntry大小
             asize = sizeof(*o)+sizeof(dict)+(sizeof(struct dictEntry*)*dictSlots(d));
             while((de = dictNext(di)) != NULL && samples < sample_size) {
                 ele = dictGetKey(de);
+                // slot 链表大小 = dictEntry + sds
                 elesize += sizeof(struct dictEntry) + sdsZmallocSize(ele);
                 samples++;
             }
             dictReleaseIterator(di);
             if (samples) asize += (double)elesize/samples*dictSize(d);
-        } else if (o->encoding == OBJ_ENCODING_INTSET) {
+        } else if (o->encoding == OBJ_ENCODING_INTSET) {// intset
+        // ROBJ + INSET + intent的数组空间
             intset *is = o->ptr;
             asize = sizeof(*o)+sizeof(*is)+(size_t)is->encoding*is->length;
         } else {
@@ -1319,7 +1333,7 @@ NULL
             return;
         }
         addReplyLongLong(c,estimateObjectIdleTime(o)/1000);
-    } else if (!strcasecmp(c->argv[1]->ptr,"freq") && c->argc == 3) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"freq") && c->argc == 3) {// 查看频率
         if ((o = objectCommandLookupOrReply(c,c->argv[2],shared.null[c->resp]))
                 == NULL) return;
         if (!(server.maxmemory_policy & MAXMEMORY_FLAG_LFU)) {
@@ -1330,6 +1344,8 @@ NULL
          * in case of the key has not been accessed for a long time,
          * because we update the access time only
          * when the key is read or overwritten. */
+
+         // 主要使用lfu属性
         addReplyLongLong(c,LFUDecrAndReturn(o));
     } else {
         addReplySubcommandSyntaxError(c);
@@ -1357,7 +1373,7 @@ void memoryCommand(client *c) {
 NULL
         };
         addReplyHelp(c, help);
-    } else if (!strcasecmp(c->argv[1]->ptr,"usage") && c->argc >= 3) {
+    } else if (!strcasecmp(c->argv[1]->ptr,"usage") && c->argc >= 3) {// 空间
         dictEntry *de;
         long long samples = OBJ_COMPUTE_SIZE_DEF_SAMPLES;
         for (int j = 3; j < c->argc; j++) {
@@ -1377,10 +1393,12 @@ NULL
                 return;
             }
         }
+        // 找到对应的robj
         if ((de = dictFind(c->db->dict,c->argv[2]->ptr)) == NULL) {
             addReplyNull(c);
             return;
         }
+        // 计算
         size_t usage = objectComputeSize(dictGetVal(de),samples);
         usage += sdsZmallocSize(dictGetKey(de));
         usage += sizeof(dictEntry);

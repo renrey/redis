@@ -785,13 +785,14 @@ int loadAppendOnlyFile(char *filename) {
     /* Check if this AOF file has an RDB preamble. In that case we need to
      * load the RDB file and later continue loading the AOF tail. */
     char sig[5]; /* "REDIS" */
+    // 读取
     if (fread(sig,1,5,fp) != 5 || memcmp(sig,"REDIS",5) != 0) {
         /* No RDB preamble, seek back at 0 offset. */
         if (fseek(fp,0,SEEK_SET) == -1) goto readerr;
     } else {
         /* RDB preamble. Pass loading the RDB functions. */
         rio rdb;
-
+        // 混合模式
         serverLog(LL_NOTICE,"Reading RDB preamble from AOF file...");
         if (fseek(fp,0,SEEK_SET) == -1) goto readerr;
         rioInitWithFile(&rdb,fp);
@@ -803,6 +804,7 @@ int loadAppendOnlyFile(char *filename) {
         }
     }
 
+    // 读取真正内容-》命令
     /* Read the actual AOF file, in REPL format, command by command. */
     while(1) {
         int argc, j;
@@ -867,6 +869,7 @@ int loadAppendOnlyFile(char *filename) {
             }
         }
 
+        // 找命令
         /* Command lookup */
         cmd = lookupCommand(argv[0]->ptr);
         if (!cmd) {
@@ -885,6 +888,7 @@ int loadAppendOnlyFile(char *filename) {
         {
             queueMultiCommand(fakeClient);
         } else {
+            // 执行命令
             cmd->proc(fakeClient);
         }
 

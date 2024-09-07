@@ -318,29 +318,31 @@ extern int configOOMScoreAdjValuesDefaults[CONFIG_OOM_COUNT];
 /* Slave replication state. Used in server.repl_state for slaves to remember
  * what to do next. */
 typedef enum {
-    REPL_STATE_NONE = 0,            /* No active replication */
-    REPL_STATE_CONNECT,             /* Must connect to master */
-    REPL_STATE_CONNECTING,          /* Connecting to master */
-    /* --- Handshake states, must be ordered --- */
-    REPL_STATE_RECEIVE_PING_REPLY,  /* Wait for PING reply */
-    REPL_STATE_SEND_HANDSHAKE,      /* Send handshake sequance to master */
-    REPL_STATE_RECEIVE_AUTH_REPLY,  /* Wait for AUTH reply */
+    REPL_STATE_NONE = 0,            /* No active replication 不是从节点*/
+    REPL_STATE_CONNECT,             /* Must connect to master 需要发起连接*/
+    REPL_STATE_CONNECTING,          /* Connecting to master 发起连接*/
+    /* --- Handshake states, must be ordered --- 握手状态 */
+    REPL_STATE_RECEIVE_PING_REPLY,  /* Wait for PING reply 等待ping回应 */
+    REPL_STATE_SEND_HANDSHAKE,      /* Send handshake sequance to master  发送握手给master*/
+    REPL_STATE_RECEIVE_AUTH_REPLY,  /* Wait for AUTH reply 等待安全验证回应*/
+    // 等待REPLCONF（3种）命令回应
     REPL_STATE_RECEIVE_PORT_REPLY,  /* Wait for REPLCONF reply */
     REPL_STATE_RECEIVE_IP_REPLY,    /* Wait for REPLCONF reply */
     REPL_STATE_RECEIVE_CAPA_REPLY,  /* Wait for REPLCONF reply */
-    REPL_STATE_SEND_PSYNC,          /* Send PSYNC */
-    REPL_STATE_RECEIVE_PSYNC_REPLY, /* Wait for PSYNC reply */
+
+    REPL_STATE_SEND_PSYNC,          /* Send PSYNC 发送psync*/
+    REPL_STATE_RECEIVE_PSYNC_REPLY, /* Wait for PSYNC reply 等待psync响应*/
     /* --- End of handshake states --- */
-    REPL_STATE_TRANSFER,        /* Receiving .rdb from master */
-    REPL_STATE_CONNECTED,       /* Connected to master */
+    REPL_STATE_TRANSFER,        /* Receiving .rdb from master 正在从master获取rdb文件*/
+    REPL_STATE_CONNECTED,       /* Connected to master 已完成同步初始过程*/
 } repl_state;
 
 /* The state of an in progress coordinated failover */
 typedef enum {
     NO_FAILOVER = 0,        /* No failover in progress */
-    FAILOVER_WAIT_FOR_SYNC, /* Waiting for target replica to catch up */
+    FAILOVER_WAIT_FOR_SYNC, /* Waiting for target replica to catch up 等待目标从 跟上进度*/
     FAILOVER_IN_PROGRESS    /* Waiting for target replica to accept
-                             * PSYNC FAILOVER request. */
+                             * PSYNC FAILOVER request. 等待目标从 接受psync failover请求 */
 } failover_state;
 
 /* State of slaves from the POV of the master. Used in client->replstate.
@@ -687,7 +689,7 @@ typedef struct redisObject {
     unsigned lru:LRU_BITS; /* LRU time (relative to global lru_clock) or
                             * LFU data (least significant 8 bits frequency
                             * and most significant 16 bits access time). */
-                            // 24位
+                            // 24位, 前16位：lru最近使用時間 后8位：使用次數
     int refcount; // 引用计数，4b
     void *ptr; // 具体实现对象指针，8b
 } robj; // 16b 
@@ -1456,12 +1458,12 @@ struct redisServer {
     long long second_replid_offset; /* Accept offsets up to this for replid2. */
     int slaveseldb;                 /* Last SELECTed DB in replication output */
     int repl_ping_slave_period;     /* Master pings the slave every N seconds */
-    char *repl_backlog;             /* Replication backlog for partial syncs */
+    char *repl_backlog;             /* Replication backlog for partial syncs 用于（正常下）增量同步 */
     long long repl_backlog_size;    /* Backlog circular buffer size */
     long long repl_backlog_histlen; /* Backlog actual data length */
     long long repl_backlog_idx;     /* Backlog circular buffer current offset,
                                        that is the next byte will'll write to.*/
-    long long repl_backlog_off;     /* Replication "master offset" of first
+    long long repl_backlog_off;     /*当前repl_backlog缓冲区第1个元素的master下标 Replication "master offset" of first
                                        byte in the replication backlog buffer.*/
     time_t repl_backlog_time_limit; /* Time without slaves after the backlog
                                        gets released. */

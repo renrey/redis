@@ -1655,7 +1655,7 @@ static int parseOptions(int argc, char **argv) {
             config.pipe_mode = 1;
         } else if (!strcmp(argv[i],"--pipe-timeout") && !lastarg) {
             config.pipe_timeout = atoi(argv[++i]);
-        } else if (!strcmp(argv[i],"--bigkeys")) {
+        } else if (!strcmp(argv[i],"--bigkeys")) {//查詢bigkey
             config.bigkeys = 1;
         } else if (!strcmp(argv[i],"--memkeys")) {
             config.memkeys = 1;
@@ -1663,7 +1663,7 @@ static int parseOptions(int argc, char **argv) {
         } else if (!strcmp(argv[i],"--memkeys-samples")) {
             config.memkeys = 1;
             config.memkeys_samples = atoi(argv[++i]);
-        } else if (!strcmp(argv[i],"--hotkeys")) {
+        } else if (!strcmp(argv[i],"--hotkeys")) {// 查詢hotkey
             config.hotkeys = 1;
         } else if (!strcmp(argv[i],"--eval") && !lastarg) {
             config.eval = argv[++i];
@@ -1960,8 +1960,8 @@ static void usage(void) {
 "                     no reply is received within <n> seconds.\n"
 "                     Default timeout: %d. Use 0 to wait forever.\n",
     REDIS_CLI_DEFAULT_PIPE_TIMEOUT);
-    fprintf(stderr,
-"  --bigkeys          Sample Redis keys looking for keys with many elements (complexity).\n"
+    fprintf(bigkeysstderr,
+"  --          Sample Redis keys looking for keys with many elements (complexity).\n"
 "  --memkeys          Sample Redis keys looking for keys consuming a lot of memory.\n"
 "  --memkeys-samples <n> Sample Redis keys looking for keys consuming a lot of memory.\n"
 "                     And define number of key elements to sample\n"
@@ -7456,7 +7456,7 @@ static redisReply *sendScan(unsigned long long *it) {
         reply = redisCommand(context, "SCAN %llu MATCH %b",
             *it, config.pattern, sdslen(config.pattern));
     else
-        reply = redisCommand(context,"SCAN %llu",*it);
+        reply = redisCommand(context,"SCAN %llu",*it);// 实际就是scan，使用下标参数
 
     /* Handle any error conditions */
     if(reply == NULL) {
@@ -7478,7 +7478,7 @@ static redisReply *sendScan(unsigned long long *it) {
     assert(reply->element[1]->type == REDIS_REPLY_ARRAY);
 
     /* Update iterator */
-    *it = strtoull(reply->element[0]->str, NULL, 10);
+    *it = strtoull(reply->element[0]->str, NULL, 10);// 更新下次下标
 
     return reply;
 }
@@ -7487,6 +7487,7 @@ static int getDbSize(void) {
     redisReply *reply;
     int size;
 
+// dbsize命令
     reply = redisCommand(context, "DBSIZE");
 
     if (reply == NULL) {
@@ -7517,10 +7518,15 @@ typedef struct {
     sds biggest_key;
 } typeinfo;
 
+// str是 字节
 typeinfo type_string = { "string", "STRLEN", "bytes" };
+// LIST是数量
 typeinfo type_list = { "list", "LLEN", "items" };
+// 数量
 typeinfo type_set = { "set", "SCARD", "members" };
+// key数
 typeinfo type_hash = { "hash", "HLEN", "fields" };
+// 数量
 typeinfo type_zset = { "zset", "ZCARD", "members" };
 typeinfo type_stream = { "stream", "XLEN", "entries" };
 typeinfo type_other = { "other", NULL, "?" };
@@ -7556,13 +7562,16 @@ static void getKeyTypes(dict *types_dict, redisReply *keys, typeinfo **types) {
     redisReply *reply;
     unsigned int i;
 
+// 在管道pipline type命令
     /* Pipeline TYPE commands */
     for(i=0;i<keys->elements;i++) {
+        // 命令：type key（对应）
         const char* argv[] = {"TYPE", keys->element[i]->str};
         size_t lens[] = {4, keys->element[i]->len};
         redisAppendCommandArgv(context, 2, argv, lens);
     }
 
+// 获取结果
     /* Retrieve types */
     for(i=0;i<keys->elements;i++) {
         if(redisGetReply(context, (void**)&reply)!=REDIS_OK) {
@@ -7579,8 +7588,9 @@ static void getKeyTypes(dict *types_dict, redisReply *keys, typeinfo **types) {
             }
             exit(1);
         }
-
+        // 响应type
         sds typereply = sdsnew(reply->str);
+        // 找types_dict中对应的数据类型
         dictEntry *de = dictFind(types_dict, typereply);
         sdsfree(typereply);
         typeinfo *type = NULL;
@@ -7588,7 +7598,7 @@ static void getKeyTypes(dict *types_dict, redisReply *keys, typeinfo **types) {
             type = dictGetVal(de);
         else if (strcmp(reply->str, "none")) /* create new types for modules, (but not for deleted keys) */
             type = typeinfo_add(types_dict, reply->str, &type_other);
-        types[i] = type;
+        types[i] = type;// types中第n个元素，代表这个元素的tpye
         freeReplyObject(reply);
     }
 }
@@ -7607,14 +7617,22 @@ static void getKeySizes(redisReply *keys, typeinfo **types,
             continue;
 
         if (!memkeys) {
+            // BIGKEY
+
+            // 对应类型size命令
             const char* argv[] = {types[i]->sizecmd, keys->element[i]->str};
             size_t lens[] = {strlen(types[i]->sizecmd), keys->element[i]->len};
             redisAppendCommandArgv(context, 2, argv, lens);
-        } else if (memkeys_samples==0) {
+        } else if (memkeys_samples==0) {// LARGE KEY一般都是这个
+        // MEMORY USAGE key 
             const char* argv[] = {"MEMORY", "USAGE", keys->element[i]->str};
             size_t lens[] = {6, 5, keys->element[i]->len};
             redisAppendCommandArgv(context, 3, argv, lens);
         } else {
+            // LARGE KEY 开启memkeys_samples
+
+            // MEMORY USAGE key SAMPLES
+
             sds samplesstr = sdsfromlonglong(memkeys_samples);
             const char* argv[] = {"MEMORY", "USAGE", keys->element[i]->str, "SAMPLES", samplesstr};
             size_t lens[] = {6, 5, keys->element[i]->len, 7, sdslen(samplesstr)};
@@ -7645,6 +7663,7 @@ static void getKeySizes(redisReply *keys, typeinfo **types,
                 keys->element[i]->str);
             sizes[i] = 0;
         } else {
+            // 就放入大小
             sizes[i] = reply->integer;
         }
 
@@ -7662,6 +7681,7 @@ static void findBigKeys(int memkeys, unsigned memkeys_samples) {
     double pct;
 
     dict *types_dict = dictCreate(&typeinfoDictType, NULL);
+    // 只显示6种数据类型 -》其实只有stirng的命令是否返回字节大小
     typeinfo_add(types_dict, "string", &type_string);
     typeinfo_add(types_dict, "list", &type_list);
     typeinfo_add(types_dict, "set", &type_set);
@@ -7670,7 +7690,7 @@ static void findBigKeys(int memkeys, unsigned memkeys_samples) {
     typeinfo_add(types_dict, "stream", &type_stream);
 
     /* Total keys pre scanning */
-    total_keys = getDbSize();
+    total_keys = getDbSize();// db数量
 
     /* Status message */
     printf("\n# Scanning the entire keyspace to find biggest keys as well as\n");
@@ -7683,11 +7703,13 @@ static void findBigKeys(int memkeys, unsigned memkeys_samples) {
         pct = 100 * (double)sampled/total_keys;
 
         /* Grab some keys and point to the keys array */
-        reply = sendScan(&it);
-        keys  = reply->element[1];
+        reply = sendScan(&it);// 发送scan命令
+        keys  = reply->element[1];// 返回的key
 
+        // 分配空间
         /* Reallocate our type and size array if we need to */
         if(keys->elements > arrsize) {
+            // 大概数量就是elements返回数量
             types = zrealloc(types, sizeof(typeinfo*)*keys->elements);
             sizes = zrealloc(sizes, sizeof(unsigned long long)*keys->elements);
 
@@ -7699,10 +7721,12 @@ static void findBigKeys(int memkeys, unsigned memkeys_samples) {
             arrsize = keys->elements;
         }
 
+// 解析type、大小
         /* Retrieve types and then sizes */
-        getKeyTypes(types_dict, keys, types);
-        getKeySizes(keys, types, sizes, memkeys, memkeys_samples);
+        getKeyTypes(types_dict, keys, types);// 通过pipeline执行每个key的type key命令，获取到类型
+        getKeySizes(keys, types, sizes, memkeys, memkeys_samples);// 通过对应
 
+// 遍历key
         /* Now update our stats */
         for(i=0;i<keys->elements;i++) {
             typeinfo *type = types[i];
@@ -7710,11 +7734,12 @@ static void findBigKeys(int memkeys, unsigned memkeys_samples) {
             if(!type)
                 continue;
 
-            type->totalsize += sizes[i];
-            type->count++;
-            totlen += keys->element[i]->len;
+            type->totalsize += sizes[i];// 当前类型所有key总大小
+            type->count++;// 当前类型key数量
+            totlen += keys->element[i]->len;// 
             sampled++;
 
+            // 每次找到新的最大key都会打印
             if(type->biggest<sizes[i]) {
                 /* Keep track of biggest key name for this type */
                 if (type->biggest_key)
@@ -7724,14 +7749,14 @@ static void findBigKeys(int memkeys, unsigned memkeys_samples) {
                     fprintf(stderr, "Failed to allocate memory for key!\n");
                     exit(1);
                 }
-
+                // 达标找到新的bigkey
                 printf(
                    "[%05.2f%%] Biggest %-6s found so far '%s' with %llu %s\n",
                    pct, type->name, type->biggest_key, sizes[i],
                    !memkeys? type->sizeunit: "bytes");
 
                 /* Keep track of the biggest size for this type */
-                type->biggest = sizes[i];
+                type->biggest = sizes[i];// 更新类型的最大长度
             }
 
             /* Update overall progress */
@@ -7770,14 +7795,18 @@ static void findBigKeys(int memkeys, unsigned memkeys_samples) {
     dictReleaseIterator(di);
 
     printf("\n");
-
+    // 输出不同类型的统计信息
     di = dictGetIterator(types_dict);
     while ((de = dictNext(di))) {
         typeinfo *type = dictGetVal(de);
+        //  key数量 类型 with 总大小 大小单位 (当前类型占总key百分比  每个key占多少)
+        // 504 strings with 1403 bytes (99.60% of keys, avg size 2.78)
+        // 1 lists with 100004 items (00.20% of keys, avg size 100004.00)
         printf("%llu %ss with %llu %s (%05.2f%% of keys, avg size %.2f)\n",
            type->count, type->name, type->totalsize, !memkeys? type->sizeunit: "bytes",
            sampled ? 100 * (double)type->count/sampled : 0,
            type->count ? (double)type->totalsize/type->count : 0);
+           // memkeys 则是memory ususage 查询占用空间大小
     }
     dictReleaseIterator(di);
 
@@ -7791,6 +7820,7 @@ static void getKeyFreqs(redisReply *keys, unsigned long long *freqs) {
     redisReply *reply;
     unsigned int i;
 
+// OBJECT FREQ命令
     /* Pipeline OBJECT freq commands */
     for(i=0;i<keys->elements;i++) {
         const char* argv[] = {"OBJECT", "FREQ", keys->element[i]->str};
@@ -7846,7 +7876,7 @@ static void findHotKeys(void) {
         pct = 100 * (double)sampled/total_keys;
 
         /* Grab some keys and point to the keys array */
-        reply = sendScan(&it);
+        reply = sendScan(&it);// scan获取key
         keys  = reply->element[1];
 
         /* Reallocate our freqs array if we need to */
@@ -7861,6 +7891,7 @@ static void findHotKeys(void) {
             arrsize = keys->elements;
         }
 
+        // OBJECT FREQ命令获取
         getKeyFreqs(keys, freqs);
 
         /* Now update our stats */
@@ -8411,6 +8442,7 @@ int main(int argc, char **argv) {
         pipeMode();
     }
 
+// 執行查詢bigkey
     /* Find big keys */
     if (config.bigkeys) {
         if (cliConnect(0) == REDIS_ERR) exit(1);

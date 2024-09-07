@@ -760,7 +760,7 @@ unsigned int dictGetSomeKeys(dict *d, dictEntry **des, unsigned int count) {
         maxsizemask = d->ht[1].sizemask;
 
     /* Pick a random point inside the larger table. */
-    unsigned long i = randomULong() & maxsizemask;
+    unsigned long i = randomULong() & maxsizemask;// 纯随机
     unsigned long emptylen = 0; /* Continuous empty entries so far. */
     while(stored < count && maxsteps--) {
         for (j = 0; j < tables; j++) {
@@ -947,21 +947,24 @@ unsigned long dictScan(dict *d,
 
         /* Emit entries at cursor */
         if (bucketfn) bucketfn(privdata, &t0->table[v & m0]);
-        de = t0->table[v & m0];
+        de = t0->table[v & m0];// 等于通过v下标找到entry
+        // 遍历这个slot的entry，执行fn函数
         while (de) {
             next = de->next;
             fn(privdata, de);
             de = next;
         }
 
+        // 遍历完了，更新v下标
         /* Set unmasked bits so incrementing the reversed cursor
          * operates on the masked bits */
-        v |= ~m0;
+         // 假设 本次sizemask 保留后n位，前面都是m位
+        v |= ~m0;// v前n位（m0中前面0）都是1，m个1 + v的n位
 
         /* Increment the reverse cursor */
-        v = rev(v);
-        v++;
-        v = rev(v);
+        v = rev(v);// 把v翻转  v的n位（倒序） + m个1 
+        v++;// 翻转后+1 ——》 n位（最后1个肯定0，毕竟进1）+ m个0
+        v = rev(v);// 翻转 -》m个0 + n位 -》实际等于对 v 的后n位倒序+1
 
     } else {
         t0 = &d->ht[0];

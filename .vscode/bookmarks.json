@@ -4,27 +4,27 @@
 			"path": "src/server.h",
 			"bookmarks": [
 				{
-					"line": 1026,
+					"line": 1028,
 					"column": 0,
 					"label": "watchdog"
 				},
 				{
-					"line": 1028,
+					"line": 1030,
 					"column": 0,
 					"label": "ram"
 				},
 				{
-					"line": 1249,
+					"line": 1251,
 					"column": 0,
 					"label": "从节点列表"
 				},
 				{
-					"line": 1569,
+					"line": 1571,
 					"column": 0,
 					"label": "cluster操作-核心判断"
 				},
 				{
-					"line": 2516,
+					"line": 2518,
 					"column": 0,
 					"label": "一堆redis命令函数定义"
 				}
@@ -69,77 +69,82 @@
 					"label": "真正创建db对象"
 				},
 				{
-					"line": 3353,
+					"line": 3355,
 					"column": 0,
 					"label": "创建后台定时任务"
 				},
 				{
-					"line": 3360,
+					"line": 3362,
 					"column": 0,
 					"label": "socket-注册AcceptHandler"
 				},
 				{
-					"line": 3407,
+					"line": 3409,
 					"column": 0,
 					"label": "cluster初始化"
 				},
 				{
-					"line": 3411,
+					"line": 3413,
 					"column": 0,
 					"label": "服务器启动-慢日志"
 				},
 				{
-					"line": 3412,
+					"line": 3414,
 					"column": 0,
 					"label": "延迟监控"
 				},
 				{
-					"line": 3426,
+					"line": 3428,
 					"column": 0,
 					"label": "初始化io-多线程io"
 				},
 				{
-					"line": 3501,
+					"line": 3503,
 					"column": 0,
 					"label": "初始化-注入redis命令"
 				},
 				{
-					"line": 4041,
+					"line": 4043,
 					"column": 0,
 					"label": "执行客户端命令-入口"
 				},
 				{
-					"line": 4140,
+					"line": 4142,
 					"column": 0,
 					"label": "執行客戶端命令-cluster模式转发命令"
 				},
 				{
-					"line": 4171,
+					"line": 4173,
 					"column": 0,
 					"label": "淘汰時機-每次執行命令前，調用"
 				},
 				{
-					"line": 4331,
+					"line": 4333,
 					"column": 0,
 					"label": "執行客戶端命令-真正執行命令邏輯"
 				},
 				{
-					"line": 6274,
+					"line": 6278,
 					"column": 0,
 					"label": "服务器启动-主入口"
 				},
 				{
-					"line": 6361,
+					"line": 6347,
+					"column": 0,
+					"label": "server啟動-檢查是否sentinel_mode"
+				},
+				{
+					"line": 6366,
 					"column": 0,
 					"label": "服务器启动-哨兵初始化"
 				},
 				{
-					"line": 6452,
+					"line": 6458,
 					"column": 0,
 					"label": "服务器启动-初始化服务器！！！"
 				},
 				{
-					"line": 6530,
+					"line": 6539,
 					"column": 0,
 					"label": "服务执行-循环eventloop"
 				}
@@ -349,17 +354,17 @@
 					"label": "触发cluster过期删除key"
 				},
 				{
-					"line": 768,
+					"line": 769,
 					"column": 0,
 					"label": "key命令"
 				},
 				{
-					"line": 1063,
+					"line": 1066,
 					"column": 0,
 					"label": "scan命令"
 				},
 				{
-					"line": 1534,
+					"line": 1537,
 					"column": 0,
 					"label": "判断key过期"
 				}
@@ -374,12 +379,12 @@
 					"label": "_dictExpand- 创建扩容数组"
 				},
 				{
-					"line": 1046,
+					"line": 1049,
 					"column": 0,
 					"label": "触发扩容"
 				},
 				{
-					"line": 1086,
+					"line": 1089,
 					"column": 0,
 					"label": "扩容大小"
 				}
@@ -389,27 +394,27 @@
 			"path": "src/object.c",
 			"bookmarks": [
 				{
-					"line": 80,
+					"line": 81,
 					"column": 0,
 					"label": "raw编码"
 				},
 				{
-					"line": 90,
+					"line": 91,
 					"column": 0,
 					"label": "embstr编码"
 				},
 				{
-					"line": 260,
+					"line": 261,
 					"column": 0,
 					"label": "创建初始intset"
 				},
 				{
-					"line": 268,
+					"line": 269,
 					"column": 0,
 					"label": "hash对象默认创建"
 				},
 				{
-					"line": 462,
+					"line": 463,
 					"column": 0,
 					"label": "对val编码"
 				}
@@ -539,7 +544,7 @@
 			"path": "src/evict.c",
 			"bookmarks": [
 				{
-					"line": 173,
+					"line": 176,
 					"column": 0,
 					"label": "从ht选择key注入淘汰池"
 				}
@@ -842,6 +847,26 @@
 					"line": 180,
 					"column": 0,
 					"label": "lazy淘汰机制-当前key包含robj对象超过64个，后台清理"
+				}
+			]
+		},
+		{
+			"path": "src/sentinel.c",
+			"bookmarks": [
+				{
+					"line": 3558,
+					"column": 0,
+					"label": "sentinelCommand"
+				}
+			]
+		},
+		{
+			"path": "src/redis-cli.c",
+			"bookmarks": [
+				{
+					"line": 8445,
+					"column": 0,
+					"label": "cli请求查bigkey"
 				}
 			]
 		}
